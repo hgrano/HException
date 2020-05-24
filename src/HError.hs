@@ -18,7 +18,7 @@ module HError(
   getMay,
   get,
   err,
-  extendError,
+  generalize,
   raise
 ) where
 
@@ -57,15 +57,15 @@ type Result1 e a = Either (Error1 e) a
 type TypeIndexed l = (TP.HAllTaggedEq l, H.HLabelSet (H.LabelsOf l), H.HAllTaggedLV l)
 
 -- | Changes (extends) the type of an 'Error' so it is more general than the original. The underlying stored value
--- is left unchanged. For most use cases 'extend' will likely be more suitable than 'extendError'.
-extendError :: (TypeIndexed f, V.ExtendsVariant e f) => Error e -> Error f
-extendError (Error (T.TIC v)) = Error . T.TIC $ H.extendsVariant v
+-- is left unchanged. For most use cases 'extend' will likely be more suitable than 'generalize'.
+generalize :: (TypeIndexed f, V.ExtendsVariant e f) => Error e -> Error f
+generalize (Error (T.TIC v)) = Error . T.TIC $ H.extendsVariant v
 
--- | Extend the given result so that it may used in a context which should return a superset of the errors that may
+-- | Extend the given result so that it may be used in a context which can return a superset of the errors that may
 -- arise from the original result. This is useful for calling multiple functions which return different errors types
 -- from within a single function.
 extend :: (TypeIndexed f, V.ExtendsVariant e f) => Result e a -> Result f a
-extend (Left e) = Left $ extendError e
+extend (Left e) = Left $ generalize e
 extend (Right x) = Right x
 
 -- | Extract an error of a specific type from an 'Error'. Returns @Nothing@ if the error encased is not of the required

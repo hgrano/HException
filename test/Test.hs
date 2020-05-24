@@ -48,7 +48,7 @@ testExtend = HUnit.TestLabel "extend" . HUnit.TestCase $ do
 testGet :: HUnit.Test
 testGet = HUnit.TestLabel "do" . HUnit.TestCase $ do
   let simple1 :: H.Error1 SimpleError = H.err $ SimpleError "error1"
-  let extended1 :: H.Error (SimpleError :^: IntError :^: '[]) = H.extendError simple1
+  let extended1 :: H.Error (SimpleError :^: IntError :^: '[]) = H.generalize simple1
       extended2 :: H.Error (IntError :^: SimpleError :^: '[]) = H.err $ IntError 1
   HUnit.assertEqual "get simple1" (SimpleError "error1") $ H.get simple1
   HUnit.assertEqual "getMay (Just) extended1" (Just $ SimpleError "error1") $ H.getMay extended1
