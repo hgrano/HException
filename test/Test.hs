@@ -40,10 +40,20 @@ testExtend = HUnit.TestLabel "extend" . HUnit.TestCase $ do
   let extended1a :: H.Result (SimpleError :^: IntError :^: '[]) Int = H.extend simple1
       extended1b :: H.Result (IntError :^: SimpleError :^: '[]) Int = H.extend simple1
   let extended2 :: H.Result (CE.ArithException :^: SimpleError :^: IntError :^: '[]) Int = H.extend extended1a
-      expectedShow = "Left (Error TIC{simpleError=SimpleError \"error1\"})"
+      expectedShow = "Left Error{simpleError=SimpleError \"error1\"}"
   HUnit.assertEqual "Show extended1a" expectedShow $ show extended1a
   HUnit.assertEqual "Show extended1b" expectedShow $ show extended1b
   HUnit.assertEqual "Show extended2" expectedShow $ show extended2
+
+testGet :: HUnit.Test
+testGet = HUnit.TestLabel "do" . HUnit.TestCase $ do
+  let simple1 :: H.Error1 SimpleError = H.err $ SimpleError "error1"
+  let extended1 :: H.Error (SimpleError :^: IntError :^: '[]) = H.extendError simple1
+      extended2 :: H.Error (IntError :^: SimpleError :^: '[]) = H.err $ IntError 1
+  HUnit.assertEqual "get simple1" (SimpleError "error1") $ H.get simple1
+  HUnit.assertEqual "getMay (Just) extended1" (Just $ SimpleError "error1") $ H.getMay extended1
+  HUnit.assertEqual "getMay (Just) extended2" (Just $ IntError 1) $ H.getMay extended2
+  HUnit.assertEqual "getMay (Nothing) extended2" (Nothing :: Maybe SimpleError) $ H.getMay extended2
 
 testRaise :: HUnit.Test
 testRaise = HUnit.TestLabel "raise" . HUnit.TestCase $ do
@@ -54,12 +64,12 @@ testRaise = HUnit.TestLabel "raise" . HUnit.TestCase $ do
 
   let composite1 :: H.Result (SimpleError :^: IntError :^: '[]) Int = H.raise $ SimpleError "error1"
       composite2 :: H.Result (SimpleError :^: IntError :^: '[]) Int = H.raise $ IntError 1
-  HUnit.assertEqual "Show composite1" "Left (Error TIC{simpleError=SimpleError \"error1\"})" $ show composite1
-  HUnit.assertEqual "Show composite2" "Left (Error TIC{intError=IntError 1})" $ show composite2
+  HUnit.assertEqual "Show composite1" "Left Error{simpleError=SimpleError \"error1\"}" $ show composite1
+  HUnit.assertEqual "Show composite2" "Left Error{intError=IntError 1}" $ show composite2
 
 main :: IO ()
 main = do
-  counts <- HUnit.runTestTT $ HUnit.TestList [testDoExample, testExtend, testRaise]
+  counts <- HUnit.runTestTT $ HUnit.TestList [testDoExample, testExtend, testGet, testRaise]
   if HUnit.errors counts > 0 || HUnit.failures counts > 0 then
     E.exitFailure
   else
