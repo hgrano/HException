@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeOperators       #-}
 
@@ -28,7 +29,7 @@ testDoExample = HUnit.TestLabel "do" . HUnit.TestCase $ do
       | y /= 0 = return $ fromIntegral x / fromIntegral y
       | otherwise = H.raise CE.DivideByZero
 
-    wordsDivision :: String -> Int -> H.Result (CE.ArithException :^: SimpleError :^: H.Nil) Double
+    wordsDivision :: String -> Int -> H.Result (CE.ArithException :^: SimpleError :^: '[]) Double
     wordsDivision str n = do
       numWords <- H.extend $ processStr str
       H.extend $ safeDivide numWords n
@@ -36,9 +37,9 @@ testDoExample = HUnit.TestLabel "do" . HUnit.TestCase $ do
 testExtend :: HUnit.Test
 testExtend = HUnit.TestLabel "extend" . HUnit.TestCase $ do
   let simple1 :: H.Result1 SimpleError Int = H.raise $ SimpleError "error1"
-  let extended1a :: H.Result (SimpleError :^: IntError :^: H.Nil) Int = H.extend simple1
-      extended1b :: H.Result (IntError :^: SimpleError :^: H.Nil) Int = H.extend simple1
-  let extended2 :: H.Result (CE.ArithException :^: SimpleError :^: IntError :^: H.Nil) Int = H.extend extended1a
+  let extended1a :: H.Result (SimpleError :^: IntError :^: '[]) Int = H.extend simple1
+      extended1b :: H.Result (IntError :^: SimpleError :^: '[]) Int = H.extend simple1
+  let extended2 :: H.Result (CE.ArithException :^: SimpleError :^: IntError :^: '[]) Int = H.extend extended1a
       expectedShow = "Left (Error TIC{simpleError=SimpleError \"error1\"})"
   HUnit.assertEqual "Show extended1a" expectedShow $ show extended1a
   HUnit.assertEqual "Show extended1b" expectedShow $ show extended1b
@@ -51,8 +52,8 @@ testRaise = HUnit.TestLabel "raise" . HUnit.TestCase $ do
   HUnit.assertBool "Error not equal to non-error" (simple1 /= Right 1)
   HUnit.assertBool "Error not equal to different error" (simple1 /= simple2)
 
-  let composite1 :: H.Result (SimpleError :^: IntError :^: H.Nil) Int = H.raise $ SimpleError "error1"
-      composite2 :: H.Result (SimpleError :^: IntError :^: H.Nil) Int = H.raise $ IntError 1
+  let composite1 :: H.Result (SimpleError :^: IntError :^: '[]) Int = H.raise $ SimpleError "error1"
+      composite2 :: H.Result (SimpleError :^: IntError :^: '[]) Int = H.raise $ IntError 1
   HUnit.assertEqual "Show composite1" "Left (Error TIC{simpleError=SimpleError \"error1\"})" $ show composite1
   HUnit.assertEqual "Show composite2" "Left (Error TIC{intError=IntError 1})" $ show composite2
 
