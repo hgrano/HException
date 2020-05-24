@@ -1,9 +1,9 @@
-{-# LANGUAGE ConstraintKinds #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE ConstraintKinds    #-}
+{-# LANGUAGE DataKinds          #-}
+{-# LANGUAGE FlexibleContexts   #-}
+{-# LANGUAGE FlexibleInstances  #-}
 {-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE TypeOperators      #-}
 
 module HError(
   Error,
@@ -17,10 +17,10 @@ module HError(
 ) where
 
 import qualified Data.HList.CommonMain as H
-import qualified Data.HList.TIC as T
-import qualified Data.HList.TIP as TP
-import qualified Data.HList.Variant as V
-import GHC.TypeLits (KnownNat)
+import qualified Data.HList.TIC        as T
+import qualified Data.HList.TIP        as TP
+import qualified Data.HList.Variant    as V
+import           GHC.TypeLits          (KnownNat)
 
 -- * Basic types and data types.
 
@@ -56,7 +56,7 @@ type TypeIndexed l = (TP.HAllTaggedEq l, H.HLabelSet (H.LabelsOf l), H.HAllTagge
 -- from within a single function.
 extend :: (TypeIndexed f, V.ExtendsVariant e f) => Result e a -> Result f a
 extend (Left (Error (T.TIC v))) = Left . Error . T.TIC $ H.extendsVariant v
-extend (Right x) = Right x
+extend (Right x)                = Right x
 
 -- | Return an error result using the provided error.
 raise :: (H.HAllTaggedEq es,

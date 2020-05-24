@@ -1,12 +1,12 @@
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE TypeOperators       #-}
 
 import qualified Control.Exception as CE
-import Data.Char (isAlpha)
-import HError ((:^:))
-import qualified HError as H
-import qualified System.Exit as E
-import qualified Test.HUnit as HUnit
+import           Data.Char         (isAlpha)
+import           HError            ((:^:))
+import qualified HError            as H
+import qualified System.Exit       as E
+import qualified Test.HUnit        as HUnit
 
 newtype SimpleError = SimpleError String deriving (Eq, Ord, Show)
 newtype IntError = IntError Int deriving (Eq, Ord, Show)
