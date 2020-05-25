@@ -81,7 +81,8 @@ testRecover = HUnit.TestLabel "raise" . HUnit.TestCase $ do
 --      intErrExt :: H.Result (CE.ArithException :^: SimpleError :^: IntError :^: '[]) Bool = H.extend intErr
 --      goodExt :: H.Result (CE.ArithException :^: SimpleError :^: IntError :^: '[]) Bool = Right True
 
-  HUnit.assertEqual "" (Right False) $ arithErr `H.recovers` (handleSimple `H.orElse` (handleArithAndInt `H.orElse` H.done))
+  HUnit.assertEqual "" (Right False) $
+    arithErr `H.recovers` handleSimple `H.orElse` handleArithAndInt `H.orElse` H.done
 
   where
     handleSimple :: H.Handler (H.Only SimpleError) (H.Only String) Bool

@@ -121,9 +121,12 @@ recover (Right x) _ = Right x
 
 class Recovers es fs es' a | es fs -> es' where
   recovers :: Result es a -> H.HList fs -> Result es' a
+  infixr 1 `recovers`
 
 orElse :: Handler es es' a -> H.HList fs -> H.HList (Handler es es' a ': fs)
 orElse = H.HCons
+
+infixr 2 `orElse`
 
 -- | Delete all members of the type-list @l@ from the type-list @m@.
 class HDeleteAll (l :: [*])  (m :: [*]) (m' :: [*]) | l m -> m'
@@ -137,23 +140,22 @@ sliceVariant :: (H.SplitVariant x xl xr, HDeleteAll xl x xr) =>
                 Either (V.Variant xl) (V.Variant xr)
 sliceVariant = H.splitVariant
 
-instance (H.SplitVariant es (e :^: es') os,
-          HDeleteAll (e :^: es') es os,
-          Recovers os (f1 ': f2 ': fs) es'' a) => Recovers es (Handler (e :^: es') es'' a ': f1 ': f2 ': fs) es'' a where
+instance (H.SplitVariant es es' os,
+          HDeleteAll es' es os,
+          Recovers os (f ': fs) es'' a,
+          TypeIndexed es'') => Recovers es (Handler es' es'' a ': f ': fs) es'' a where
   recovers (Left (Error (T.TIC v))) fs = case sliceVariant v of
     Left e -> H.hHead fs . Error $ T.TIC e
     Right o -> recovers (Left (Error (T.TIC o))) $ H.hTail fs
   recovers (Right x) _ = Right x
 
-data Done = Done
+type Done = H.HList '[]
 
-type IsDone = H.HList '[Done]
+done :: Done
+done = H.HNil
 
-done :: IsDone
-done = Done `H.HCons` H.HNil
-
-instance (H.SameLength es (e :^: es'), H.ExtendsVariant es (e :^: es')) =>
-         Recovers es (Handler (e :^: es') es'' a ': Done ': '[]) es'' a where
+instance (H.SameLength es es', H.ExtendsVariant es es', TypeIndexed es'') =>
+         Recovers es '[Handler es' es'' a] es'' a where
   recovers (Left (Error (T.TIC v))) fs = H.hHead fs . Error . T.TIC $ V.rearrangeVariant v
   recovers (Right x) _ = Right x
 
