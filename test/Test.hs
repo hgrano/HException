@@ -40,7 +40,7 @@ testExtend = HUnit.TestLabel "extend" . HUnit.TestCase $ do
   let extended1a :: H.Result (SimpleError :^: IntError :^: '[]) Int = H.extend simple1
       extended1b :: H.Result (IntError :^: SimpleError :^: '[]) Int = H.extend simple1
   let extended2 :: H.Result (CE.ArithException :^: SimpleError :^: IntError :^: '[]) Int = H.extend extended1a
-      expectedShow = "Left Error{simpleError=SimpleError \"error1\"}"
+      expectedShow = "Left Error{simpleError=SimpleError {unSimpleError = \"error1\"}}"
   HUnit.assertEqual "Show extended1a" expectedShow $ show extended1a
   HUnit.assertEqual "Show extended1b" expectedShow $ show extended1b
   HUnit.assertEqual "Show extended2" expectedShow $ show extended2
@@ -64,7 +64,9 @@ testRaise = HUnit.TestLabel "raise" . HUnit.TestCase $ do
 
   let composite1 :: H.Result (SimpleError :^: IntError :^: '[]) Int = H.raise $ SimpleError "error1"
       composite2 :: H.Result (SimpleError :^: IntError :^: '[]) Int = H.raise $ IntError 1
-  HUnit.assertEqual "Show composite1" "Left Error{simpleError=SimpleError \"error1\"}" $ show composite1
+  HUnit.assertEqual
+    "Show composite1" "Left Error{simpleError=SimpleError {unSimpleError = \"error1\"}}"
+    (show composite1)
   HUnit.assertEqual "Show composite2" "Left Error{intError=IntError 1}" $ show composite2
 
 testRecover :: HUnit.Test
@@ -76,13 +78,17 @@ testRecover = HUnit.TestLabel "raise" . HUnit.TestCase $ do
   HUnit.assertEqual "handle intErr" (H.raise CE.Overflow) $ intErr `H.recover` simpleHandler
   HUnit.assertEqual "handle good" (Right True) $ good `H.recover` simpleHandler
 
-  let arithErr :: H.Result (CE.ArithException :^: SimpleError :^: IntError :^: '[]) Bool = H.raise CE.Overflow
+  let overFlowErr :: H.Result (CE.ArithException :^: SimpleError :^: IntError :^: '[]) Bool = H.raise CE.Overflow
 --      simpleErrExt :: H.Result (CE.ArithException :^: SimpleError :^: IntError :^: '[]) Bool = H.extend simpleErr
 --      intErrExt :: H.Result (CE.ArithException :^: SimpleError :^: IntError :^: '[]) Bool = H.extend intErr
 --      goodExt :: H.Result (CE.ArithException :^: SimpleError :^: IntError :^: '[]) Bool = Right True
 
-  HUnit.assertEqual "" (Right False) $
-    arithErr `H.recovers` handleSimple `H.orElse` handleArithAndInt `H.orElse` H.done
+  HUnit.assertEqual "Recovers arithErr" (Right False) $
+    overFlowErr `H.recovers` handleSimple `H.orElse` handleArithAndInt `H.orElse` H.done
+  HUnit.assertEqual "Recovers arithErr (reversed)" (Right False) $
+    overFlowErr `H.recovers` handleArithAndInt `H.orElse` handleSimple `H.orElse` H.done
+  HUnit.assertEqual "Recovers arithErr (minimal)" (Right False) $
+    overFlowErr `H.recovers` handleArithAndInt `H.orDefault` Right True
 
   where
     handleSimple :: H.Handler (H.Only SimpleError) (H.Only String) Bool

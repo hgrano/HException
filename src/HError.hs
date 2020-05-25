@@ -32,6 +32,7 @@ module HError(
   Recovers(..),
   value,
   orElse,
+  orDefault,
   done
 ) where
 
@@ -119,7 +120,7 @@ recover :: Result es a -> Handler es es' a -> Result es' a
 recover (Left e) f = f e
 recover (Right x) _ = Right x
 
-class Recovers es fs es' a | es fs -> es' where
+class Recovers es fs es' a | es fs -> es' a where
   recovers :: Result es a -> H.HList fs -> Result es' a
   infixr 1 `recovers`
 
@@ -127,6 +128,9 @@ orElse :: Handler es es' a -> H.HList fs -> H.HList (Handler es es' a ': fs)
 orElse = H.HCons
 
 infixr 2 `orElse`
+
+orDefault :: Handler es es' a -> Result es' a -> H.HList '[Handler es es' a, Result es' a]
+orDefault h r = h `H.HCons` r `H.HCons` H.HNil
 
 -- | Delete all members of the type-list @l@ from the type-list @m@.
 class HDeleteAll (l :: [*])  (m :: [*]) (m' :: [*]) | l m -> m'
@@ -142,8 +146,8 @@ sliceVariant = H.splitVariant
 
 instance (H.SplitVariant es es' os,
           HDeleteAll es' es os,
-          Recovers os (f ': fs) es'' a,
-          TypeIndexed es'') => Recovers es (Handler es' es'' a ': f ': fs) es'' a where
+          Recovers os (Handler x x' a ': fs) es'' a,
+          TypeIndexed es'') => Recovers es (Handler es' es'' a ': Handler x x' a ': fs) es'' a where
   recovers (Left (Error (T.TIC v))) fs = case sliceVariant v of
     Left e -> H.hHead fs . Error $ T.TIC e
     Right o -> recovers (Left (Error (T.TIC o))) $ H.hTail fs
@@ -154,12 +158,22 @@ type Done = H.HList '[]
 done :: Done
 done = H.HNil
 
+--class IsEnding es es' a where
+--  recoverEnd :: t es a -> Result es' a
+
+--instance IsEnding
+
 instance (H.SameLength es es', H.ExtendsVariant es es', TypeIndexed es'') =>
          Recovers es '[Handler es' es'' a] es'' a where
   recovers (Left (Error (T.TIC v))) fs = H.hHead fs . Error . T.TIC $ V.rearrangeVariant v
   recovers (Right x) _ = Right x
 
---instance H.ProjectVariant '[] '[Done]
+instance (H.ProjectVariant es es') =>
+         Recovers es '[Handler es' es'' a, Result es'' a] es'' a where
+  recovers (Left (Error (T.TIC v))) fs = case H.projectVariant v of
+    Just e -> H.hHead fs . Error $ T.TIC e
+    Nothing -> H.hLast fs
+  recovers (Right x) _ = Right x
 
 value :: Result '[] a -> a
 value (Right x) = x
