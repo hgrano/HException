@@ -3,7 +3,10 @@
 {-# LANGUAGE FlexibleContexts   #-}
 {-# LANGUAGE FlexibleInstances  #-}
 {-# LANGUAGE FunctionalDependencies  #-}
+{-# LANGUAGE KindSignatures  #-}
+{-# LANGUAGE MonoLocalBinds  #-}
 {-# LANGUAGE MultiParamTypeClasses  #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeOperators      #-}
 {-# LANGUAGE UndecidableInstances  #-} -- TODO how to remove this extension?
@@ -32,6 +35,7 @@ import qualified Data.HList.TIC        as T
 import qualified Data.HList.TIP        as TP
 import qualified Data.HList.Variant    as V
 import           Data.Maybe            (fromJust)
+import           Data.Proxy            (Proxy(Proxy))
 import           GHC.TypeLits          (KnownNat)
 
 -- | Type for containing an error which maybe one of known list of error types @es@.
@@ -84,7 +88,7 @@ getMay = H.hOccurs . unError
 
 -- | Specialization of 'getMay' for cases where there is only a single type of error.
 get :: Error1 e -> e
-get = fromJust . getMay -- TODO how to avoid using fromJust although it is safe
+get = fromJust . getMay -- TODO how to avoid using fromJust although it is safe -- try unvariant
 
 -- | Lift a standard exception value into an 'Error'.
 err :: (H.HasField e (H.Record es) e,
@@ -110,23 +114,34 @@ recover :: Result es a -> Handler es es' a -> Result es' a
 recover (Left e) f = f e
 recover (Right x) _ = Right x
 
-class Recovers es es' fs a | es fs -> es' where
+class Recovers es fs es' a | es fs -> es' where
   recovers :: Result es a -> H.HList fs -> Result es' a
 
---type Handlers es es' fs a = Handler es es' a ': fs
+-- | Delete all members of the type-list @l@ from the type-list @m@.
+class HDeleteAll (l :: [*])  (m :: [*]) (m' :: [*]) | l m -> m'
 
-instance (V.ProjectVariant es es',
-          -- H.HasField e (V.Variant es) (Maybe e),
-          H.HasField e (H.Record es) e,
-          H.HFind1 e (H.UnLabel e (H.LabelsOf es)) (H.UnLabel e (H.LabelsOf es)) n,
-          -- H.HFindLabel e es n,
-          KnownNat (H.HNat2Nat n),
-          H.HOccursNot1 (H.Label e) (H.LabelsOf es') (H.LabelsOf es'),
-          Recovers es es'' fs a) => Recovers es es'' (Handler (e :^: es') es'' a ': fs) a where
-  recovers l@(Left (Error (T.TIC v))) fs = case H.projectVariant v of
-    Just e -> H.hHead fs . Error $ T.TIC e
-    Nothing -> recovers l $ H.hTail fs
+instance (H.HDeleteMany l (H.HList m) (H.HList m'), HDeleteAll l' m' m'') => HDeleteAll (l ': l') m m''
+
+instance HDeleteAll l '[] '[]
+
+hDeleteAll :: HDeleteAll l m m' => proxy1 l -> proxy2 m -> Proxy m'
+hDeleteAll _ _ = Proxy
+
+sliceVariant :: (H.SplitVariant x xl xr, HDeleteAll xl x xr) =>
+                proxy xr ->
+                V.Variant x ->
+                Either (V.Variant xl) (V.Variant xr)
+sliceVariant _ = H.splitVariant
+
+instance (H.SplitVariant es (e :^: es') os,
+          HDeleteAll (e :^: es') es os,
+          Recovers os fs es'' a) => Recovers es (Handler (e :^: es') es'' a ': fs) es'' a where
+  recovers (Left (Error (T.TIC v))) fs = case sliceVariant (hDeleteAll (Proxy :: Proxy (e :^: es')) v) v of
+    Left e -> H.hHead fs . Error $ T.TIC e
+    Right o -> recovers (Left (Error (T.TIC o))) $ H.hTail fs
   recovers (Right x) _ = Right x
+
+--instance Recovers es '[] 
 
 value :: Result '[] a -> a
 value (Right x) = x
