@@ -15,10 +15,12 @@ module HError(
   -- * Basic types.
   Error,
   (:^:),
+  Only,
   Error1,
   Result,
   Result1,
   TypeIndexed,
+  Handler,
   -- * Combinator functions for working with @Result@s.
   extend,
   getMay,
@@ -27,7 +29,10 @@ module HError(
   generalize,
   raise,
   recover,
-  value
+  Recovers(..),
+  value,
+  orElse,
+  done
 ) where
 
 import qualified Data.HList.CommonMain as H
@@ -53,7 +58,8 @@ deriving instance (Ord e, Ord (V.Variant es)) => Ord (Error (e ': es))
 type e :^: es = H.Tagged e e ': es
 infixr 7 :^:
 
-type Error1 e = Error (e :^: '[])
+type Only e = e :^: '[]
+type Error1 e = Error (Only e)
 
 -- | Type for returning results from computations which may fail with one of a known set of errors @es@ or return a
 -- value @a@.
@@ -116,12 +122,15 @@ recover (Right x) _ = Right x
 class Recovers es fs es' a | es fs -> es' where
   recovers :: Result es a -> H.HList fs -> Result es' a
 
+orElse :: Handler es es' a -> H.HList fs -> H.HList (Handler es es' a ': fs)
+orElse = H.HCons
+
 -- | Delete all members of the type-list @l@ from the type-list @m@.
 class HDeleteAll (l :: [*])  (m :: [*]) (m' :: [*]) | l m -> m'
 
 instance (H.HDeleteMany l (H.HList m) (H.HList m'), HDeleteAll l' m' m'') => HDeleteAll (l ': l') m m''
 
-instance HDeleteAll l '[] '[]
+instance HDeleteAll '[] m m
 
 sliceVariant :: (H.SplitVariant x xl xr, HDeleteAll xl x xr) =>
                 V.Variant x ->
@@ -130,14 +139,25 @@ sliceVariant = H.splitVariant
 
 instance (H.SplitVariant es (e :^: es') os,
           HDeleteAll (e :^: es') es os,
-          Recovers os fs es'' a) => Recovers es (Handler (e :^: es') es'' a ': fs) es'' a where
+          Recovers os (f1 ': f2 ': fs) es'' a) => Recovers es (Handler (e :^: es') es'' a ': f1 ': f2 ': fs) es'' a where
   recovers (Left (Error (T.TIC v))) fs = case sliceVariant v of
     Left e -> H.hHead fs . Error $ T.TIC e
     Right o -> recovers (Left (Error (T.TIC o))) $ H.hTail fs
   recovers (Right x) _ = Right x
 
-instance Recovers es '[] es a where
-  recovers x _ = x
+data Done = Done
+
+type IsDone = H.HList '[Done]
+
+done :: IsDone
+done = Done `H.HCons` H.HNil
+
+instance (H.SameLength es (e :^: es'), H.ExtendsVariant es (e :^: es')) =>
+         Recovers es (Handler (e :^: es') es'' a ': Done ': '[]) es'' a where
+  recovers (Left (Error (T.TIC v))) fs = H.hHead fs . Error . T.TIC $ V.rearrangeVariant v
+  recovers (Right x) _ = Right x
+
+--instance H.ProjectVariant '[] '[Done]
 
 value :: Result '[] a -> a
 value (Right x) = x
