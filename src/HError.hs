@@ -2,8 +2,11 @@
 {-# LANGUAGE DataKinds          #-}
 {-# LANGUAGE FlexibleContexts   #-}
 {-# LANGUAGE FlexibleInstances  #-}
+{-# LANGUAGE FunctionalDependencies  #-}
+{-# LANGUAGE MultiParamTypeClasses  #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeOperators      #-}
+{-# LANGUAGE UndecidableInstances  #-} -- TODO how to remove this extension?
 
 module HError(
   -- * Basic types.
@@ -19,7 +22,9 @@ module HError(
   get,
   err,
   generalize,
-  raise
+  raise,
+  recover,
+  value
 ) where
 
 import qualified Data.HList.CommonMain as H
@@ -29,10 +34,10 @@ import qualified Data.HList.Variant    as V
 import           Data.Maybe            (fromJust)
 import           GHC.TypeLits          (KnownNat)
 
--- | Type for containing an error which maybe one of known list of error types @e@.
-newtype Error e = Error { unError :: T.TIC e }
+-- | Type for containing an error which maybe one of known list of error types @es@.
+newtype Error es = Error { unError :: T.TIC es }
 
-instance V.ShowVariant e => Show (Error e) where
+instance V.ShowVariant es => Show (Error es) where
   show = ("Error" ++) . drop 3 . show . unError
 
 deriving instance Eq (Error '[])
@@ -47,24 +52,25 @@ infixr 7 :^:
 
 type Error1 e = Error (e :^: '[])
 
--- | Type for returning results from computations which may fail with one of a known set of errors or return a value.
-type Result e a = Either (Error e) a
+-- | Type for returning results from computations which may fail with one of a known set of errors @es@ or return a
+-- value @a@.
+type Result es a = Either (Error es) a
 
 -- | A specialization of 'Result' for computations which can return only one type of error.
 type Result1 e a = Either (Error1 e) a
 
--- | Constrain that the type-list @l@ has no duplicate types, and so can be indexed via type only.
-type TypeIndexed l = (TP.HAllTaggedEq l, H.HLabelSet (H.LabelsOf l), H.HAllTaggedLV l)
+-- | Constrain that the type-list @xs@ has no duplicate types, and so can be indexed via type only.
+type TypeIndexed xs = (TP.HAllTaggedEq xs, H.HLabelSet (H.LabelsOf xs), H.HAllTaggedLV xs)
 
 -- | Changes (extends) the type of an 'Error' so it is more general than the original. The underlying stored value
 -- is left unchanged. For most use cases 'extend' will likely be more suitable than 'generalize'.
-generalize :: (TypeIndexed f, V.ExtendsVariant e f) => Error e -> Error f
+generalize :: (TypeIndexed es', V.ExtendsVariant es es') => Error es -> Error es'
 generalize (Error (T.TIC v)) = Error . T.TIC $ H.extendsVariant v
 
 -- | Extend the given result so that it may be used in a context which can return a superset of the errors that may
 -- arise from the original result. This is useful for calling multiple functions which return different errors types
 -- from within a single function.
-extend :: (TypeIndexed f, V.ExtendsVariant e f) => Result e a -> Result f a
+extend :: (TypeIndexed es', V.ExtendsVariant es es') => Result es a -> Result es' a
 extend (Left e) = Left $ generalize e
 extend (Right x) = Right x
 
@@ -88,10 +94,40 @@ err :: (H.HasField e (H.Record es) e,
        e -> Error es
 err = Error . H.mkTIC
 
--- | Return an error result using the provided error.
+-- | Return an error result using the provided error. HError equivalent of "throwing" an exception - but a value is
+-- returned instead of being thrown.
 raise :: (H.HasField e (H.Record es) e,
           H.HFind1 e (H.UnLabel e (H.LabelsOf es)) (H.UnLabel e (H.LabelsOf es)) n,
           KnownNat (H.HNat2Nat n),
           TypeIndexed es) =>
           e -> Result es a
 raise = Left . err
+
+type Handler es es' a = Error es -> Result es' a
+
+-- | Handle errors and return a new result. HError equivalent of "catching" an exception.
+recover :: Result es a -> Handler es es' a -> Result es' a
+recover (Left e) f = f e
+recover (Right x) _ = Right x
+
+class Recovers es es' fs a | es fs -> es' where
+  recovers :: Result es a -> H.HList fs -> Result es' a
+
+--type Handlers es es' fs a = Handler es es' a ': fs
+
+instance (V.ProjectVariant es es',
+          -- H.HasField e (V.Variant es) (Maybe e),
+          H.HasField e (H.Record es) e,
+          H.HFind1 e (H.UnLabel e (H.LabelsOf es)) (H.UnLabel e (H.LabelsOf es)) n,
+          -- H.HFindLabel e es n,
+          KnownNat (H.HNat2Nat n),
+          H.HOccursNot1 (H.Label e) (H.LabelsOf es') (H.LabelsOf es'),
+          Recovers es es'' fs a) => Recovers es es'' (Handler (e :^: es') es'' a ': fs) a where
+  recovers l@(Left (Error (T.TIC v))) fs = case H.projectVariant v of
+    Just e -> H.hHead fs . Error $ T.TIC e
+    Nothing -> recovers l $ H.hTail fs
+  recovers (Right x) _ = Right x
+
+value :: Result '[] a -> a
+value (Right x) = x
+value (Left _) = error "HError internal error: enexpected inhabitant of `Error '[]`."
