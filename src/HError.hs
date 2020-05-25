@@ -35,7 +35,6 @@ import qualified Data.HList.TIC        as T
 import qualified Data.HList.TIP        as TP
 import qualified Data.HList.Variant    as V
 import           Data.Maybe            (fromJust)
-import           Data.Proxy            (Proxy(Proxy))
 import           GHC.TypeLits          (KnownNat)
 
 -- | Type for containing an error which maybe one of known list of error types @es@.
@@ -124,24 +123,21 @@ instance (H.HDeleteMany l (H.HList m) (H.HList m'), HDeleteAll l' m' m'') => HDe
 
 instance HDeleteAll l '[] '[]
 
-hDeleteAll :: HDeleteAll l m m' => proxy1 l -> proxy2 m -> Proxy m'
-hDeleteAll _ _ = Proxy
-
 sliceVariant :: (H.SplitVariant x xl xr, HDeleteAll xl x xr) =>
-                proxy xr ->
                 V.Variant x ->
                 Either (V.Variant xl) (V.Variant xr)
-sliceVariant _ = H.splitVariant
+sliceVariant = H.splitVariant
 
 instance (H.SplitVariant es (e :^: es') os,
           HDeleteAll (e :^: es') es os,
           Recovers os fs es'' a) => Recovers es (Handler (e :^: es') es'' a ': fs) es'' a where
-  recovers (Left (Error (T.TIC v))) fs = case sliceVariant (hDeleteAll (Proxy :: Proxy (e :^: es')) v) v of
+  recovers (Left (Error (T.TIC v))) fs = case sliceVariant v of
     Left e -> H.hHead fs . Error $ T.TIC e
     Right o -> recovers (Left (Error (T.TIC o))) $ H.hTail fs
   recovers (Right x) _ = Right x
 
---instance Recovers es '[] 
+instance Recovers es '[] es a where
+  recovers x _ = x
 
 value :: Result '[] a -> a
 value (Right x) = x
