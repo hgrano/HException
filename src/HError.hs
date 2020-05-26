@@ -19,6 +19,7 @@ module HError(
   Error1,
   Result,
   Result1,
+  Value,
   TypeIndexed,
   Handler,
   -- * Combinator functions for working with @Result@s.
@@ -46,8 +47,12 @@ import           GHC.TypeLits          (KnownNat)
 -- | Type for containing an error which maybe one of known list of error types @es@.
 newtype Error es = Error { unError :: T.TIC es }
 
-instance V.ShowVariant es => Show (Error es) where
+instance V.ShowVariant (e ': es) => Show (Error (e ': es)) where
   show = ("Error" ++) . drop 3 . show . unError
+
+-- We need this instance so we can show 'Value's
+instance Show (Error '[]) where
+  show _ = error "HError internal error: show called on 'Error '[]'"
 
 deriving instance Eq (Error '[])
 deriving instance (Eq e, Eq (V.Variant es)) => Eq (Error (e ': es))
@@ -68,6 +73,10 @@ type Result es a = Either (Error es) a
 
 -- | A specialization of 'Result' for computations which can return only one type of error.
 type Result1 e a = Either (Error1 e) a
+
+-- | A specialization of 'Result' for computations in which all possible error types have been dealt with using
+-- 'handle' or 'handles'. This means the domain of possible errors is empty.
+type Value a = Result '[] a
 
 -- | Constrain that the type-list @xs@ has no duplicate types, and so can be indexed via type only.
 type TypeIndexed xs = (TP.HAllTaggedEq xs, H.HLabelSet (H.LabelsOf xs), H.HAllTaggedLV xs)
@@ -113,6 +122,7 @@ raise :: (H.HasField e (H.Record es) e,
           e -> Result es a
 raise = Left . err
 
+-- | The type of functions used to handle errors.
 type Handler es es' a = Error es -> Result es' a
 
 -- | Handle errors and return a new result. HError equivalent of "catching" an exception.
@@ -121,16 +131,9 @@ recover (Left e) f = f e
 recover (Right x) _ = Right x
 
 class Recovers es fs es' a | es fs -> es' a where
+  -- | Handle errors using a heterogeneous list of 'Handler's, and (optionally) a default value.
   recovers :: Result es a -> H.HList fs -> Result es' a
   infixr 1 `recovers`
-
-orElse :: Handler es es' a -> H.HList fs -> H.HList (Handler es es' a ': fs)
-orElse = H.HCons
-
-infixr 2 `orElse`
-
-orDefault :: Handler es es' a -> Result es' a -> H.HList '[Handler es es' a, Result es' a]
-orDefault h r = h `H.HCons` r `H.HCons` H.HNil
 
 -- | Delete all members of the type-list @l@ from the type-list @m@.
 class HDeleteAll (l :: [*])  (m :: [*]) (m' :: [*]) | l m -> m'
@@ -139,9 +142,7 @@ instance (H.HDeleteMany l (H.HList m) (H.HList m'), HDeleteAll l' m' m'') => HDe
 
 instance HDeleteAll '[] m m
 
-sliceVariant :: (H.SplitVariant x xl xr, HDeleteAll xl x xr) =>
-                V.Variant x ->
-                Either (V.Variant xl) (V.Variant xr)
+sliceVariant :: (H.SplitVariant x xl xr, HDeleteAll xl x xr) => V.Variant x -> Either (V.Variant xl) (V.Variant xr)
 sliceVariant = H.splitVariant
 
 instance (H.SplitVariant es es' os,
@@ -153,28 +154,41 @@ instance (H.SplitVariant es es' os,
     Right o -> recovers (Left (Error (T.TIC o))) $ H.hTail fs
   recovers (Right x) _ = Right x
 
-type Done = H.HList '[]
-
-done :: Done
-done = H.HNil
-
---class IsEnding es es' a where
---  recoverEnd :: t es a -> Result es' a
-
---instance IsEnding
-
 instance (H.SameLength es es', H.ExtendsVariant es es', TypeIndexed es'') =>
          Recovers es '[Handler es' es'' a] es'' a where
   recovers (Left (Error (T.TIC v))) fs = H.hHead fs . Error . T.TIC $ V.rearrangeVariant v
   recovers (Right x) _ = Right x
 
-instance (H.ProjectVariant es es') =>
+instance (HDeleteAll es' es os,  -- Constrain this so that the instance only applies if not all errors have been handled
+         H.HLengthGe os ('H.HSucc 'H.HZero), -- using this length constraint.
+         H.ProjectVariant es es',
+         TypeIndexed es'') =>
          Recovers es '[Handler es' es'' a, Result es'' a] es'' a where
   recovers (Left (Error (T.TIC v))) fs = case H.projectVariant v of
     Just e -> H.hHead fs . Error $ T.TIC e
     Nothing -> H.hLast fs
   recovers (Right x) _ = Right x
 
-value :: Result '[] a -> a
+-- | Chain 'Handler's together.
+orElse :: Handler es es' a -> H.HList fs -> H.HList (Handler es es' a ': fs)
+orElse = H.HCons
+
+infixr 2 `orElse`
+
+-- | Type indicating all error types have been handled.
+type Done = H.HList '[]
+
+-- | Use this at the end of a chain of 'Handler's to indicate complete coverage of all error types.
+done :: Done
+done = H.HNil
+
+-- | An alternative to @`orElse` done@ which attempts to use the provided 'Handler', or if the 'Handler' does not apply,
+-- returns a default 'Result'.
+orDefault :: Handler es es' a -> Result es' a -> H.HList '[Handler es es' a, Result es' a]
+orDefault h r = h `H.HCons` r `H.HCons` H.HNil
+
+-- | Extract the value from a computation result after all errors have been handled. This is type-safe because the
+-- type of errors is constrained to be empty.
+value :: Value a -> a
 value (Right x) = x
-value (Left _) = error "HError internal error: enexpected inhabitant of `Error '[]`."
+value (Left _) = error "HError internal error: unexpected error inside a 'Value'"

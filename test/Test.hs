@@ -74,23 +74,30 @@ testRecover = HUnit.TestLabel "raise" . HUnit.TestCase $ do
   let simpleErr :: H.Result (SimpleError :^: IntError :^: '[]) Bool = H.raise $ SimpleError "error1"
       intErr :: H.Result (SimpleError :^: IntError :^: '[]) Bool = H.raise $ IntError 1
       good :: H.Result (SimpleError :^: IntError :^: '[]) Bool = Right True
-  HUnit.assertEqual "handle simpleErr" (Right False) $ simpleErr `H.recover` simpleHandler
-  HUnit.assertEqual "handle intErr" (H.raise CE.Overflow) $ intErr `H.recover` simpleHandler
-  HUnit.assertEqual "handle good" (Right True) $ good `H.recover` simpleHandler
+  HUnit.assertEqual "handle simpleErr" (Right False) $ simpleErr `H.recover` basicHandler
+  HUnit.assertEqual "handle intErr" (H.raise CE.Overflow) $ intErr `H.recover` basicHandler
+  HUnit.assertEqual "handle good" (Right True) $ good `H.recover` basicHandler
 
   let overFlowErr :: H.Result (CE.ArithException :^: SimpleError :^: IntError :^: '[]) Bool = H.raise CE.Overflow
---      simpleErrExt :: H.Result (CE.ArithException :^: SimpleError :^: IntError :^: '[]) Bool = H.extend simpleErr
---      intErrExt :: H.Result (CE.ArithException :^: SimpleError :^: IntError :^: '[]) Bool = H.extend intErr
---      goodExt :: H.Result (CE.ArithException :^: SimpleError :^: IntError :^: '[]) Bool = Right True
-
+      simpleErrExt :: H.Result (CE.ArithException :^: SimpleError :^: IntError :^: '[]) Bool = H.extend simpleErr
+      goodExt :: H.Result (CE.ArithException :^: SimpleError :^: IntError :^: '[]) Bool = Right True
   HUnit.assertEqual "Recovers arithErr" (Right False) $
     overFlowErr `H.recovers` handleSimple `H.orElse` handleArithAndInt `H.orElse` H.done
   HUnit.assertEqual "Recovers arithErr (reversed)" (Right False) $
     overFlowErr `H.recovers` handleArithAndInt `H.orElse` handleSimple `H.orElse` H.done
   HUnit.assertEqual "Recovers arithErr (minimal)" (Right False) $
     overFlowErr `H.recovers` handleArithAndInt `H.orDefault` Right True
+  HUnit.assertEqual "Recovers arithErr (default)" (H.raise "Arithmetic") $
+    overFlowErr `H.recovers` handleInt `H.orElse` handleSimple `H.orDefault` H.raise "Arithmetic"
+  HUnit.assertEqual "Recovers simpleErrExt" (H.raise "error1") $
+    simpleErrExt `H.recovers` handleSimple `H.orDefault` H.raise "fall through"
+  HUnit.assertEqual "Recovers goodExt" (Right True) $
+    goodExt `H.recovers` handleSimple `H.orElse` handleArithAndInt `H.orElse` H.done
 
   where
+    handleInt :: H.Handler (H.Only IntError) (H.Only String) Bool
+    handleInt e = if H.get e == IntError 0 then Right True else H.raise "Non-zero"
+
     handleSimple :: H.Handler (H.Only SimpleError) (H.Only String) Bool
     handleSimple = H.raise . unSimpleError . H.get
 
@@ -100,14 +107,18 @@ testRecover = HUnit.TestLabel "raise" . HUnit.TestCase $ do
       Just x -> H.raise $ show x
       Nothing -> H.raise "not arith"
 
-    simpleHandler :: H.Error (SimpleError :^: IntError :^: '[]) -> H.Result1 CE.ArithException Bool
-    simpleHandler e = case H.getMay e of
+    basicHandler :: H.Error (SimpleError :^: IntError :^: '[]) -> H.Result1 CE.ArithException Bool
+    basicHandler e = case H.getMay e of
       Just (SimpleError _) -> Right False
       Nothing -> H.raise CE.Overflow
 
+testValue :: HUnit.Test
+testValue = HUnit.TestLabel "raise" . HUnit.TestCase $
+  HUnit.assertEqual "value" 1 (H.value (Right 1 :: H.Value Int))
+
 main :: IO ()
 main = do
-  counts <- HUnit.runTestTT $ HUnit.TestList [testDoExample, testExtend, testGet, testRaise, testRecover]
+  counts <- HUnit.runTestTT $ HUnit.TestList [testDoExample, testExtend, testGet, testRaise, testRecover, testValue]
   if HUnit.errors counts > 0 || HUnit.failures counts > 0 then
     E.exitFailure
   else
