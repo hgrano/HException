@@ -47,7 +47,7 @@ import qualified Data.HList.CommonMain as H
 import qualified Data.HList.TIC        as T
 import qualified Data.HList.TIP        as TP
 import qualified Data.HList.Variant    as V
-import           Data.Proxy            (Proxy(Proxy))
+import           Data.Proxy            (Proxy (Proxy))
 import           GHC.TypeLits          (KnownNat)
 
 -- | Type for containing an error which maybe one of known list of error types @es@.
@@ -211,7 +211,7 @@ class Panic es where
 
 instance (E.Exception e, Panic (e' :^: es)) => Panic (e :^: e' :^: es) where
   panic (Error (T.TIC v)) = case H.splitVariant1 v of
-    Left x -> E.throwIO x
+    Left x   -> E.throwIO x
     Right es -> panic . Error $ T.TIC es
 
 instance E.Exception e => Panic '[H.Tagged e e] where
@@ -233,7 +233,7 @@ instance (Attempt es, E.Exception e, TypeIndexed (e :^: es)) => Attempt (e :^: e
       r <- handleSome (Proxy :: Proxy es) s
       return $ case r of
         Left (Error (T.TIC v)) -> Left . Error . T.TIC $ H.extendVariant v
-        Right x -> Right x
+        Right x                -> Right x
 
 instance Attempt '[] where
   handleSome _ = E.throwIO
