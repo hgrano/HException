@@ -37,7 +37,7 @@ module HError(
   done,
   orDefault,
   value,
-  -- * Handling 'Error's from the IO monad
+  -- * Handling @Error@s from the @IO@ monad
   Panic(..),
   Attempt(attempt)
 ) where
