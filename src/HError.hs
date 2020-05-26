@@ -12,7 +12,7 @@
 {-# LANGUAGE UndecidableInstances   #-}
 
 module HError(
-  -- * Basic types.
+  -- * Basic types
   Error,
   (:^:),
   Only,
@@ -22,25 +22,31 @@ module HError(
   Value,
   TypeIndexed,
   Handler,
-  -- * Combinator functions for working with @Result@s.
+  Done,
+  -- * Pure functions for working with @Result@s
+  generalize,
   extend,
   getMay,
   get,
   err,
-  generalize,
   raise,
   recover,
   Recovers(..),
-  value,
+  DeleteAll,
   orElse,
+  done,
   orDefault,
-  done
+  value,
+  -- * Handling 'Error's from the IO monad
+  Attempt(attempt)
 ) where
 
+import qualified Control.Exception     as E
 import qualified Data.HList.CommonMain as H
 import qualified Data.HList.TIC        as T
 import qualified Data.HList.TIP        as TP
 import qualified Data.HList.Variant    as V
+import           Data.Proxy            (Proxy(Proxy))
 import           GHC.TypeLits          (KnownNat)
 
 -- | Type for containing an error which maybe one of known list of error types @es@.
@@ -139,17 +145,17 @@ class Recovers es fs es' a | es fs -> es' a where
   infixr 1 `recovers`
 
 -- | Delete all members of the type-list @l@ from the type-list @m@.
-class HDeleteAll (l :: [*])  (m :: [*]) (m' :: [*]) | l m -> m'
+class DeleteAll (l :: [*])  (m :: [*]) (m' :: [*]) | l m -> m'
 
-instance (H.HDeleteMany l (H.HList m) (H.HList m'), HDeleteAll l' m' m'') => HDeleteAll (l ': l') m m''
+instance (H.HDeleteMany l (H.HList m) (H.HList m'), DeleteAll l' m' m'') => DeleteAll (l ': l') m m''
 
-instance HDeleteAll '[] m m
+instance DeleteAll '[] m m
 
-sliceVariant :: (H.SplitVariant x xl xr, HDeleteAll xl x xr) => V.Variant x -> Either (V.Variant xl) (V.Variant xr)
+sliceVariant :: (H.SplitVariant x xl xr, DeleteAll xl x xr) => V.Variant x -> Either (V.Variant xl) (V.Variant xr)
 sliceVariant = H.splitVariant
 
 instance (H.SplitVariant es es' os,
-          HDeleteAll es' es os,
+          DeleteAll es' es os,
           Recovers os (Handler x x' a ': fs) es'' a,
           TypeIndexed es'') => Recovers es (Handler es' es'' a ': Handler x x' a ': fs) es'' a where
   recovers (Left (Error (T.TIC v))) fs = case sliceVariant v of
@@ -162,7 +168,7 @@ instance (H.SameLength es es', H.ExtendsVariant es es', TypeIndexed es'') =>
   recovers (Left (Error (T.TIC v))) fs = H.hHead fs . Error . T.TIC $ V.rearrangeVariant v
   recovers (Right x) _ = Right x
 
-instance (HDeleteAll es' es os,  -- Constrain this so that the instance only applies if not all errors have been handled
+instance (DeleteAll es' es os,  -- Constrain this so that the instance only applies if not all errors have been handled
          H.HLengthGe os ('H.HSucc 'H.HZero), -- using this length constraint.
          H.ProjectVariant es es',
          TypeIndexed es'') =>
@@ -195,3 +201,24 @@ orDefault h r = h `H.HCons` r `H.HCons` H.HNil
 value :: Value a -> a
 value (Right x) = x
 value (Left _) = error "HError internal error: unexpected error inside a 'Value'"
+
+--instance (Typeable e, Typeable es, V.ShowVariant (e ': es)) => E.Exception (Error (e ': es)) where
+
+class Attempt es where
+  handleSome :: proxy es -> E.SomeException -> IO (Result es a)
+
+  -- | Attempt the given IO action: if one of the 'E.Exception's in @es@ is thrown then it will be returned on the
+  -- @Left@ of the 'Result', if any other 'E.Exception' is thrown it will not be handled, otherwise the @Right@ is
+  -- returned.
+  attempt :: IO a -> IO (Result es a)
+  attempt action = (Right <$> action) `E.catch` handleSome (Proxy :: Proxy es)
+
+instance (Attempt es, E.Exception e, TypeIndexed (e :^: es), V.ExtendsVariant es (e :^: es)) => Attempt (e :^: es) where
+  handleSome _ s = case E.fromException s of
+    Just (x :: e) -> return $ raise x
+    Nothing -> do
+      r <- handleSome (Proxy :: Proxy es) s
+      return $ extend r
+
+instance Attempt '[] where
+  handleSome _ = E.throwIO
