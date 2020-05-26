@@ -9,8 +9,32 @@ import qualified HError            as H
 import qualified System.Exit       as E
 import qualified Test.HUnit        as HUnit
 
-newtype SimpleError = SimpleError { unSimpleError ::  String } deriving (Eq, Ord, Show)
+newtype SimpleError = SimpleError { unSimpleError :: String } deriving (Eq, Ord, Show)
+instance CE.Exception SimpleError
+
 newtype IntError = IntError Int deriving (Eq, Ord, Show)
+instance CE.Exception IntError
+
+testAttempt :: HUnit.Test
+testAttempt = HUnit.TestLabel "abc" . HUnit.TestCase $ do
+  abc <- H.attempt . CE.throwIO $ SimpleError "abc"
+  HUnit.assertEqual "attempt abc" (H.raise (SimpleError "abc") :: H.Result1 SimpleError ()) abc
+
+  abc' <- H.attempt . CE.throwIO $ SimpleError "abc"
+  HUnit.assertEqual "attempt abc'" (H.raise (SimpleError "abc") :: H.Result (SimpleError :^: IntError :^: '[]) ()) abc'
+
+  abc'' <- H.attempt . CE.throwIO $ SimpleError "abc"
+  HUnit.assertEqual
+    "attempt abc''"
+    (H.raise (SimpleError "abc") :: H.Result (IntError :^: SimpleError :^: '[]) ())
+    abc''
+
+  let a :: IO (H.Result1 IntError ()) = H.attempt . CE.throwIO $ SimpleError "abc"
+  x <- CE.try a
+  HUnit.assertEqual "we missed it" (Left $ SimpleError "abc") x
+
+  good <- H.attempt $ return ()
+  HUnit.assertEqual "nothing wrong" (Right () :: H.Result1 SimpleError ()) good
 
 testDoExample :: HUnit.Test
 testDoExample = HUnit.TestLabel "do" . HUnit.TestCase $ do
@@ -118,7 +142,15 @@ testValue = HUnit.TestLabel "raise" . HUnit.TestCase $
 
 main :: IO ()
 main = do
-  counts <- HUnit.runTestTT $ HUnit.TestList [testDoExample, testExtend, testGet, testRaise, testRecover, testValue]
+  counts <- HUnit.runTestTT $ HUnit.TestList [
+      testAttempt,
+      testDoExample,
+      testExtend,
+      testGet,
+      testRaise,
+      testRecover,
+      testValue
+    ]
   if HUnit.errors counts > 0 || HUnit.failures counts > 0 then
     E.exitFailure
   else

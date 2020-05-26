@@ -213,12 +213,14 @@ class Attempt es where
   attempt :: IO a -> IO (Result es a)
   attempt action = (Right <$> action) `E.catch` handleSome (Proxy :: Proxy es)
 
-instance (Attempt es, E.Exception e, TypeIndexed (e :^: es), V.ExtendsVariant es (e :^: es)) => Attempt (e :^: es) where
+instance (Attempt es, E.Exception e, TypeIndexed (e :^: es)) => Attempt (e :^: es) where
   handleSome _ s = case E.fromException s of
     Just (x :: e) -> return $ raise x
     Nothing -> do
       r <- handleSome (Proxy :: Proxy es) s
-      return $ extend r
+      return $ case r of
+        Left (Error (T.TIC v)) -> Left . Error . T.TIC $ H.extendVariant v
+        Right x -> Right x
 
 instance Attempt '[] where
   handleSome _ = E.throwIO
