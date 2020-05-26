@@ -104,13 +104,13 @@ testRecover = HUnit.TestLabel "raise" . HUnit.TestCase $ do
     handleArithAndInt :: H.Handler (CE.ArithException :^: IntError :^: '[]) (H.Only String) Bool
     handleArithAndInt e = case H.getMay e of
       Just CE.Overflow -> Right False
-      Just x -> H.raise $ show x
-      Nothing -> H.raise "not arith"
+      Just x           -> H.raise $ show x
+      Nothing          -> H.raise "not arith"
 
     basicHandler :: H.Error (SimpleError :^: IntError :^: '[]) -> H.Result1 CE.ArithException Bool
     basicHandler e = case H.getMay e of
       Just (SimpleError _) -> Right False
-      Nothing -> H.raise CE.Overflow
+      Nothing              -> H.raise CE.Overflow
 
 testValue :: HUnit.Test
 testValue = HUnit.TestLabel "raise" . HUnit.TestCase $

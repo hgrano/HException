@@ -1,15 +1,15 @@
-{-# LANGUAGE ConstraintKinds    #-}
-{-# LANGUAGE DataKinds          #-}
-{-# LANGUAGE FlexibleContexts   #-}
-{-# LANGUAGE FlexibleInstances  #-}
-{-# LANGUAGE FunctionalDependencies  #-}
-{-# LANGUAGE KindSignatures  #-}
-{-# LANGUAGE MonoLocalBinds  #-}
+{-# LANGUAGE ConstraintKinds        #-}
+{-# LANGUAGE DataKinds              #-}
+{-# LANGUAGE FlexibleContexts       #-}
+{-# LANGUAGE FlexibleInstances      #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE KindSignatures         #-}
+{-# LANGUAGE MonoLocalBinds         #-}
 {-# LANGUAGE MultiParamTypeClasses  #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE TypeOperators      #-}
-{-# LANGUAGE UndecidableInstances  #-} -- TODO how to remove this extension?
+{-# LANGUAGE ScopedTypeVariables    #-}
+{-# LANGUAGE StandaloneDeriving     #-}
+{-# LANGUAGE TypeOperators          #-}
+{-# LANGUAGE UndecidableInstances   #-}
 
 module HError(
   -- * Basic types.
@@ -90,7 +90,7 @@ generalize (Error (T.TIC v)) = Error . T.TIC $ H.extendsVariant v
 -- arise from the original result. This is useful for calling multiple functions which return different errors types
 -- from within a single function.
 extend :: (TypeIndexed es', V.ExtendsVariant es es') => Result es a -> Result es' a
-extend (Left e) = Left $ generalize e
+extend (Left e)  = Left $ generalize e
 extend (Right x) = Right x
 
 -- | Extract an error of a specific type from an 'Error'. Returns @Nothing@ if the error encased is not of the required
@@ -127,7 +127,7 @@ type Handler es es' a = Error es -> Result es' a
 
 -- | Handle errors and return a new result. HError equivalent of "catching" an exception.
 recover :: Result es a -> Handler es es' a -> Result es' a
-recover (Left e) f = f e
+recover (Left e) f  = f e
 recover (Right x) _ = Right x
 
 class Recovers es fs es' a | es fs -> es' a where
@@ -150,7 +150,7 @@ instance (H.SplitVariant es es' os,
           Recovers os (Handler x x' a ': fs) es'' a,
           TypeIndexed es'') => Recovers es (Handler es' es'' a ': Handler x x' a ': fs) es'' a where
   recovers (Left (Error (T.TIC v))) fs = case sliceVariant v of
-    Left e -> H.hHead fs . Error $ T.TIC e
+    Left e  -> H.hHead fs . Error $ T.TIC e
     Right o -> recovers (Left (Error (T.TIC o))) $ H.hTail fs
   recovers (Right x) _ = Right x
 
@@ -165,7 +165,7 @@ instance (HDeleteAll es' es os,  -- Constrain this so that the instance only app
          TypeIndexed es'') =>
          Recovers es '[Handler es' es'' a, Result es'' a] es'' a where
   recovers (Left (Error (T.TIC v))) fs = case H.projectVariant v of
-    Just e -> H.hHead fs . Error $ T.TIC e
+    Just e  -> H.hHead fs . Error $ T.TIC e
     Nothing -> H.hLast fs
   recovers (Right x) _ = Right x
 
