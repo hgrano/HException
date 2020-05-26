@@ -41,7 +41,6 @@ import qualified Data.HList.CommonMain as H
 import qualified Data.HList.TIC        as T
 import qualified Data.HList.TIP        as TP
 import qualified Data.HList.Variant    as V
-import           Data.Maybe            (fromJust)
 import           GHC.TypeLits          (KnownNat)
 
 -- | Type for containing an error which maybe one of known list of error types @es@.
@@ -64,7 +63,10 @@ deriving instance (Ord e, Ord (V.Variant es)) => Ord (Error (e ': es))
 type e :^: es = H.Tagged e e ': es
 infixr 7 :^:
 
+-- | A singleton set of error types.
 type Only e = e :^: '[]
+
+-- | An error of only one type.
 type Error1 e = Error (Only e)
 
 -- | Type for returning results from computations which may fail with one of a known set of errors @es@ or return a
@@ -81,14 +83,15 @@ type Value a = Result '[] a
 -- | Constrain that the type-list @xs@ has no duplicate types, and so can be indexed via type only.
 type TypeIndexed xs = (TP.HAllTaggedEq xs, H.HLabelSet (H.LabelsOf xs), H.HAllTaggedLV xs)
 
--- | Changes (extends) the type of an 'Error' so it is more general than the original. The underlying stored value
--- is left unchanged. For most use cases 'extend' will likely be more suitable than 'generalize'.
+-- | Changes the type of an 'Error' so it is more general than the original. The underlying stored value
+-- is left unchanged. For most use cases 'extend' will likely be more suitable than 'generalize'. Note: this can also
+-- be used to re-order the error types.
 generalize :: (TypeIndexed es', V.ExtendsVariant es es') => Error es -> Error es'
 generalize (Error (T.TIC v)) = Error . T.TIC $ H.extendsVariant v
 
 -- | Extend the given result so that it may be used in a context which can return a superset of the errors that may
 -- arise from the original result. This is useful for calling multiple functions which return different errors types
--- from within a single function.
+-- from within a single function. Note: this can also be used to re-order the error types.
 extend :: (TypeIndexed es', V.ExtendsVariant es es') => Result es a -> Result es' a
 extend (Left e)  = Left $ generalize e
 extend (Right x) = Right x
@@ -103,7 +106,7 @@ getMay = H.hOccurs . unError
 
 -- | Specialization of 'getMay' for cases where there is only a single type of error.
 get :: Error1 e -> e
-get = fromJust . getMay -- TODO how to avoid using fromJust although it is safe -- try unvariant
+get (Error (T.TIC v))= H.unvariant v
 
 -- | Lift a standard exception value into an 'Error'.
 err :: (H.HasField e (H.Record es) e,
