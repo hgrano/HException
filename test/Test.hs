@@ -79,6 +79,18 @@ testGet = HUnit.TestLabel "do" . HUnit.TestCase $ do
   HUnit.assertEqual "getMay (Just) extended2" (Just $ IntError 1) $ H.getMay extended2
   HUnit.assertEqual "getMay (Nothing) extended2" (Nothing :: Maybe SimpleError) $ H.getMay extended2
 
+testPanic :: HUnit.Test
+testPanic = HUnit.TestLabel "do" . HUnit.TestCase $ do
+  let simple1 :: H.Error1 SimpleError = H.err $ SimpleError "error1"
+  let extended1 :: H.Error (SimpleError :^: IntError :^: '[]) = H.generalize simple1
+      extended2 :: H.Error (IntError :^: SimpleError :^: '[]) = H.err $ IntError 1
+  s1 <- CE.try (H.panic simple1 :: IO ())
+  HUnit.assertEqual "s1" (Left $ SimpleError "error1") s1
+  e1 <- CE.try (H.panic extended1 :: IO ())
+  HUnit.assertEqual "s1" (Left $ SimpleError "error1") e1
+  e2 <- CE.try (H.panic extended2 :: IO ())
+  HUnit.assertEqual "s1" (Left $ IntError 1) e2
+
 testRaise :: HUnit.Test
 testRaise = HUnit.TestLabel "raise" . HUnit.TestCase $ do
   let simple1 :: H.Result1 SimpleError Int = H.raise $ SimpleError "error1"
@@ -147,6 +159,7 @@ main = do
       testDoExample,
       testExtend,
       testGet,
+      testPanic,
       testRaise,
       testRecover,
       testValue

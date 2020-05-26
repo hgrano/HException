@@ -38,6 +38,7 @@ module HError(
   orDefault,
   value,
   -- * Handling 'Error's from the IO monad
+  Panic(..),
   Attempt(attempt)
 ) where
 
@@ -202,7 +203,19 @@ value :: Value a -> a
 value (Right x) = x
 value (Left _) = error "HError internal error: unexpected error inside a 'Value'"
 
---instance (Typeable e, Typeable es, V.ShowVariant (e ': es)) => E.Exception (Error (e ': es)) where
+class Panic es where
+  -- | Uses 'E.throw' to throw the 'E.Exception' contained in the 'Error'. Where possible, it is advised to use pure
+  -- error handling (i.e. 'raise' instead of 'panic'). This function acts as a back up where impure 'E.Exception'
+  -- handling is required.
+  panic :: Error es -> IO a
+
+instance (E.Exception e, Panic (e' :^: es)) => Panic (e :^: e' :^: es) where
+  panic (Error (T.TIC v)) = case H.splitVariant1 v of
+    Left x -> E.throwIO x
+    Right es -> panic . Error $ T.TIC es
+
+instance E.Exception e => Panic '[H.Tagged e e] where
+  panic = E.throwIO . get
 
 class Attempt es where
   handleSome :: proxy es -> E.SomeException -> IO (Result es a)
