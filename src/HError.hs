@@ -84,7 +84,7 @@ type Result es a = Either (Error es) a
 type Result1 e a = Either (Error1 e) a
 
 -- | A specialization of 'Result' for computations in which all possible error types have been dealt with using
--- 'handle' or 'handles'. This means the domain of possible errors is empty.
+-- 'recover' or 'recovers'. This means the domain of possible errors is empty.
 type Value a = Result '[] a
 
 -- | Constrain that the type-list @xs@ has no duplicate types, and so can be indexed via type only.
@@ -188,7 +188,7 @@ infixr 2 `orElse`
 -- | Type indicating all error types have been handled.
 type Done = H.HList '[]
 
--- | Use this at the end of a chain of 'Handler's to indicate complete coverage of all error types.
+-- | Use this at the end of a chain of 'Handler's to assert (at compile time) complete coverage of all error types.
 done :: Done
 done = H.HNil
 
