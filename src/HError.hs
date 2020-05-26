@@ -24,10 +24,13 @@ module HError(
   Handler,
   Done,
   -- * Pure functions for working with @Result@s
+  Generalizable,
   generalize,
   extend,
+  Gettable,
   getMay,
   get,
+  CoProductMember,
   err,
   raise,
   recover,
@@ -90,46 +93,48 @@ type Value a = Result '[] a
 -- | Constrain that the type-list @xs@ has no duplicate types, and so can be indexed via type only.
 type TypeIndexed xs = (TP.HAllTaggedEq xs, H.HLabelSet (H.LabelsOf xs), H.HAllTaggedLV xs)
 
+-- | Constrain that the input type list @xs@ contains all of the elements of the output type-list @xs'@ and that @xs'@
+-- is 'TypeIndexed'.
+type Generalizable xs xs' = (TypeIndexed xs', V.ExtendsVariant xs xs')
+
 -- | Changes the type of an 'Error' so it is more general than the original. The underlying stored value
 -- is left unchanged. For most use cases 'extend' will likely be more suitable than 'generalize'. Note: this can also
 -- be used to re-order the error types.
-generalize :: (TypeIndexed es', V.ExtendsVariant es es') => Error es -> Error es'
+generalize :: Generalizable es es' => Error es -> Error es'
 generalize (Error (T.TIC v)) = Error . T.TIC $ H.extendsVariant v
 
 -- | Extend the given result so that it may be used in a context which can return a superset of the errors that may
 -- arise from the original result. This is useful for calling multiple functions which return different errors types
 -- from within a single function. Note: this can also be used to re-order the error types.
-extend :: (TypeIndexed es', V.ExtendsVariant es es') => Result es a -> Result es' a
+extend :: Generalizable es es' => Result es a -> Result es' a
 extend (Left e)  = Left $ generalize e
 extend (Right x) = Right x
 
+-- Constraint such that the type @x@ may exist in the co-product of types @xs@.
+type Gettable xs x = (H.HasField x (H.TIC xs) (Maybe x))
+
 -- | Extract an error of a specific type from an 'Error'. Returns @Nothing@ if the error encased is not of the required
 -- type. Calls to this function will not type check if the type @e@ does not exist in the type-list @es@.
-getMay :: (H.HasField e (H.Record es) e,
-          H.HFind1 e (H.UnLabel e (H.LabelsOf es)) (H.UnLabel e (H.LabelsOf es)) n,
-          KnownNat (H.HNat2Nat n)) =>
-          Error es -> Maybe e
+getMay :: Gettable es e => Error es -> Maybe e
 getMay = H.hOccurs . unError
 
 -- | Specialization of 'getMay' for cases where there is only a single type of error.
 get :: Error1 e -> e
-get (Error (T.TIC v))= H.unvariant v
+get (Error (T.TIC v)) = H.unvariant v
+
+-- | The type @x@ exists in @xs@ at index @n@.
+type CoProductMember x xs n = (H.HasField x (H.Record xs) x,
+                               H.HFind1 x (H.UnLabel x (H.LabelsOf xs)) (H.UnLabel x (H.LabelsOf xs)) n,
+                               KnownNat (H.HNat2Nat n),
+                               TypeIndexed xs)
 
 -- | Lift a standard exception value into an 'Error'.
-err :: (H.HasField e (H.Record es) e,
-       H.HFind1 e (H.UnLabel e (H.LabelsOf es)) (H.UnLabel e (H.LabelsOf es)) n,
-       KnownNat (H.HNat2Nat n),
-       TypeIndexed es) =>
-       e -> Error es
+err :: CoProductMember e es n => e -> Error es
 err = Error . H.mkTIC
 
 -- | Return an error result using the provided error. HError equivalent of "throwing" an exception - but a value is
 -- returned instead of being thrown.
-raise :: (H.HasField e (H.Record es) e,
-          H.HFind1 e (H.UnLabel e (H.LabelsOf es)) (H.UnLabel e (H.LabelsOf es)) n,
-          KnownNat (H.HNat2Nat n),
-          TypeIndexed es) =>
-          e -> Result es a
+raise :: CoProductMember e es n => e -> Result es a
 raise = Left . err
 
 -- | The type of functions used to handle errors.
