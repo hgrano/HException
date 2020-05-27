@@ -3,6 +3,7 @@
 {-# LANGUAGE TypeOperators       #-}
 
 import qualified Control.Exception as CE
+import qualified Control.Monad.Trans.Except as TE
 import           Data.Char         (isAlpha)
 import           HError            ((:^:))
 import qualified HError            as H
@@ -17,30 +18,33 @@ instance CE.Exception IntError
 
 testAttempt :: HUnit.Test
 testAttempt = HUnit.TestLabel "abc" . HUnit.TestCase $ do
-  abc <- H.attempt . CE.throwIO $ SimpleError "abc"
-  HUnit.assertEqual "attempt abc" (H.raise (SimpleError "abc") :: H.Result1 SimpleError ()) abc
+  abc <- TE.runExceptT . H.attempt . CE.throwIO $ SimpleError "abc"
+  HUnit.assertEqual "attempt abc" (H.raise (SimpleError "abc") :: H.Result1 SimpleError ()) $ TE.except abc
 
-  abc' <- H.attempt . CE.throwIO $ SimpleError "abc"
-  HUnit.assertEqual "attempt abc'" (H.raise (SimpleError "abc") :: H.Result (SimpleError :^: IntError :^: '[]) ()) abc'
+  abc' <- TE.runExceptT . H.attempt . CE.throwIO $ SimpleError "abc"
+  HUnit.assertEqual
+    "attempt abc'"
+    (H.raise (SimpleError "abc") :: H.Result (SimpleError :^: IntError :^: '[]) ())
+    (TE.except abc')
 
-  abc'' <- H.attempt . CE.throwIO $ SimpleError "abc"
+  abc'' <- TE.runExceptT. H.attempt . CE.throwIO $ SimpleError "abc"
   HUnit.assertEqual
     "attempt abc''"
     (H.raise (SimpleError "abc") :: H.Result (IntError :^: SimpleError :^: '[]) ())
-    abc''
+    (TE.except abc'')
 
-  let a :: IO (H.Result1 IntError ()) = H.attempt . CE.throwIO $ SimpleError "abc"
+  let a :: IO (Either (H.Error1 IntError) ()) = TE.runExceptT . H.attempt . CE.throwIO $ SimpleError "abc"
   x <- CE.try a
   HUnit.assertEqual "we missed it" (Left $ SimpleError "abc") x
 
-  good <- H.attempt $ return ()
-  HUnit.assertEqual "nothing wrong" (Right () :: H.Result1 SimpleError ()) good
+  good <- TE.runExceptT . H.attempt $ return ()
+  HUnit.assertEqual "nothing wrong" (return () :: Either (H.Error1 SimpleError) ()) good
 
 testDoExample :: HUnit.Test
 testDoExample = HUnit.TestLabel "do" . HUnit.TestCase $ do
   HUnit.assertEqual "Invalid string" (H.raise $ SimpleError "Invalid string") $ wordsDivision "hello1" 1
   HUnit.assertEqual "Divide by zero" (H.raise CE.DivideByZero) $ wordsDivision "hello" 0
-  HUnit.assertEqual "Valid" (Right 0.5) $ wordsDivision "hello" 2
+  HUnit.assertEqual "Valid" (return 0.5) $ wordsDivision "hello" 2
 
   where
     processStr :: String -> H.Result1 SimpleError Int
@@ -64,7 +68,7 @@ testExtend = HUnit.TestLabel "extend" . HUnit.TestCase $ do
   let extended1a :: H.Result (SimpleError :^: IntError :^: '[]) Int = H.extend simple1
       extended1b :: H.Result (IntError :^: SimpleError :^: '[]) Int = H.extend simple1
   let extended2 :: H.Result (CE.ArithException :^: SimpleError :^: IntError :^: '[]) Int = H.extend extended1a
-      expectedShow = "Left Error{simpleError=SimpleError {unSimpleError = \"error1\"}}"
+      expectedShow = "ExceptT (Identity (Left Error{simpleError=SimpleError {unSimpleError = \"error1\"}}))"
   HUnit.assertEqual "Show extended1a" expectedShow $ show extended1a
   HUnit.assertEqual "Show extended1b" expectedShow $ show extended1b
   HUnit.assertEqual "Show extended2" expectedShow $ show extended2
@@ -95,62 +99,62 @@ testRaise :: HUnit.Test
 testRaise = HUnit.TestLabel "raise" . HUnit.TestCase $ do
   let simple1 :: H.Result1 SimpleError Int = H.raise $ SimpleError "error1"
       simple2 :: H.Result1 SimpleError Int = H.raise $ SimpleError "error2"
-  HUnit.assertBool "Error not equal to non-error" (simple1 /= Right 1)
+  HUnit.assertBool "Error not equal to non-error" (simple1 /= return 1)
   HUnit.assertBool "Error not equal to different error" (simple1 /= simple2)
 
   let composite1 :: H.Result (SimpleError :^: IntError :^: '[]) Int = H.raise $ SimpleError "error1"
       composite2 :: H.Result (SimpleError :^: IntError :^: '[]) Int = H.raise $ IntError 1
   HUnit.assertEqual
-    "Show composite1" "Left Error{simpleError=SimpleError {unSimpleError = \"error1\"}}"
+    "Show composite1" "ExceptT (Identity (Left Error{simpleError=SimpleError {unSimpleError = \"error1\"}}))"
     (show composite1)
-  HUnit.assertEqual "Show composite2" "Left Error{intError=IntError 1}" $ show composite2
+  HUnit.assertEqual "Show composite2" "ExceptT (Identity (Left Error{intError=IntError 1}))" $ show composite2
 
 testRecover :: HUnit.Test
 testRecover = HUnit.TestLabel "raise" . HUnit.TestCase $ do
   let simpleErr :: H.Result (SimpleError :^: IntError :^: '[]) Bool = H.raise $ SimpleError "error1"
       intErr :: H.Result (SimpleError :^: IntError :^: '[]) Bool = H.raise $ IntError 1
-      good :: H.Result (SimpleError :^: IntError :^: '[]) Bool = Right True
-  HUnit.assertEqual "handle simpleErr" (Right False) $ simpleErr `H.recover` basicHandler
-  HUnit.assertEqual "handle intErr" (H.raise CE.Overflow) $ intErr `H.recover` basicHandler
-  HUnit.assertEqual "handle good" (Right True) $ good `H.recover` basicHandler
+      good :: H.Result (SimpleError :^: IntError :^: '[]) Bool = return True
+  HUnit.assertEqual "handle simpleErr" (return False) $ simpleErr `H.recovers` basicHandler `H.orElse` H.done
+  HUnit.assertEqual "handle intErr" (H.raise CE.Overflow) $ intErr `H.recovers` basicHandler `H.orElse` H.done
+  HUnit.assertEqual "handle good" (return True) $ good `H.recovers` basicHandler `H.orElse` H.done
 
   let overFlowErr :: H.Result (CE.ArithException :^: SimpleError :^: IntError :^: '[]) Bool = H.raise CE.Overflow
       simpleErrExt :: H.Result (CE.ArithException :^: SimpleError :^: IntError :^: '[]) Bool = H.extend simpleErr
-      goodExt :: H.Result (CE.ArithException :^: SimpleError :^: IntError :^: '[]) Bool = Right True
-  HUnit.assertEqual "Recovers arithErr" (Right False) $
+      goodExt :: H.Result (CE.ArithException :^: SimpleError :^: IntError :^: '[]) Bool = return True
+  HUnit.assertEqual "Recovers arithErr" (return False) $
     overFlowErr `H.recovers` handleSimple `H.orElse` handleArithAndInt `H.orElse` H.done
-  HUnit.assertEqual "Recovers arithErr (reversed)" (Right False) $
+  HUnit.assertEqual "Recovers arithErr (reversed)" (return False) $
     overFlowErr `H.recovers` handleArithAndInt `H.orElse` handleSimple `H.orElse` H.done
-  HUnit.assertEqual "Recovers arithErr (minimal)" (Right False) $
-    overFlowErr `H.recovers` handleArithAndInt `H.orDefault` Right True
+  HUnit.assertEqual "Recovers arithErr (minimal)" (return False) $
+    overFlowErr `H.recovers` handleArithAndInt `H.orDefault` return True
   HUnit.assertEqual "Recovers arithErr (default)" (H.raise "Arithmetic") $
     overFlowErr `H.recovers` handleInt `H.orElse` handleSimple `H.orDefault` H.raise "Arithmetic"
   HUnit.assertEqual "Recovers simpleErrExt" (H.raise "error1") $
     simpleErrExt `H.recovers` handleSimple `H.orDefault` H.raise "fall through"
-  HUnit.assertEqual "Recovers goodExt" (Right True) $
+  HUnit.assertEqual "Recovers goodExt" (return True) $
     goodExt `H.recovers` handleSimple `H.orElse` handleArithAndInt `H.orElse` H.done
 
   where
     handleInt :: H.Handler (H.Only IntError) (H.Only String) Bool
-    handleInt e = if H.get e == IntError 0 then Right True else H.raise "Non-zero"
+    handleInt e = if H.get e == IntError 0 then return True else H.raise "Non-zero"
 
     handleSimple :: H.Handler (H.Only SimpleError) (H.Only String) Bool
     handleSimple = H.raise . unSimpleError . H.get
 
     handleArithAndInt :: H.Handler (CE.ArithException :^: IntError :^: '[]) (H.Only String) Bool
     handleArithAndInt e = case H.getMay e of
-      Just CE.Overflow -> Right False
+      Just CE.Overflow -> return False
       Just x           -> H.raise $ show x
       Nothing          -> H.raise "not arith"
 
     basicHandler :: H.Error (SimpleError :^: IntError :^: '[]) -> H.Result1 CE.ArithException Bool
     basicHandler e = case H.getMay e of
-      Just (SimpleError _) -> Right False
+      Just (SimpleError _) -> return False
       Nothing              -> H.raise CE.Overflow
 
 testValue :: HUnit.Test
 testValue = HUnit.TestLabel "raise" . HUnit.TestCase $
-  HUnit.assertEqual "value" 1 (H.value (Right 1 :: H.Value Int))
+  HUnit.assertEqual "value" 1 (H.value (return 1 :: H.Value Int))
 
 main :: IO ()
 main = do

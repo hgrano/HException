@@ -35,7 +35,6 @@ module HError(
   CoProductMember,
   err,
   raise,
-  recover,
   Recovers(..),
   DeleteAll,
   orElse,
@@ -98,7 +97,7 @@ type ResultT1 e m = ResultT (Only e) m
 
 -- | A specialization of 'Result' for computations in which all possible error types have been dealt with using
 -- 'recover' or 'recovers'. This means the domain of possible errors is empty.
-type Value m = ValueT Identity
+type Value = ValueT Identity
 
 -- | A generalization of 'Value' for computations lifted into a monad @m@.
 type ValueT m = ResultT '[] m
@@ -151,10 +150,6 @@ raise = TE.throwE . err
 type HandlerT es es' m a = Error es -> ResultT es' m a
 
 type Handler es es' a = HandlerT es es' Identity a
-
--- | Handle errors and return a new result. HError equivalent of "catching" an exception.
-recover :: Monad m => ResultT es m a -> HandlerT es es' m a -> ResultT es' m a
-recover = TE.catchE
 
 class Monad m => Recovers es fs es' m a | es fs -> es' m a where
   -- | Handle errors using a heterogeneous list of 'Handler's, and (optionally) a default value.
