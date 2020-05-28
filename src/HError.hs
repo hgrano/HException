@@ -46,15 +46,15 @@ module HError(
   Attempt(attempt)
 ) where
 
-import qualified Control.Exception     as E
+import qualified Control.Exception          as E
 import qualified Control.Monad.Trans.Except as TE
-import           Data.Functor.Identity (Identity)
-import qualified Data.HList.CommonMain as H
-import qualified Data.HList.TIC        as T
-import qualified Data.HList.TIP        as TP
-import qualified Data.HList.Variant    as V
-import           Data.Proxy            (Proxy (Proxy))
-import           GHC.TypeLits          (KnownNat)
+import           Data.Functor.Identity      (Identity)
+import qualified Data.HList.CommonMain      as H
+import qualified Data.HList.TIC             as T
+import qualified Data.HList.TIP             as TP
+import qualified Data.HList.Variant         as V
+import           Data.Proxy                 (Proxy (Proxy))
+import           GHC.TypeLits               (KnownNat)
 
 -- | Type for containing an error which maybe one of known list of error types @es@.
 newtype Error es = Error { unError :: T.TIC es }

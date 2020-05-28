@@ -16,6 +16,7 @@ source-repository head
 library
   exposed-modules:
       HError
+    , Control.HException
   hs-source-dirs:
       src
   ghc-options: -Wall -Werror -O
@@ -28,7 +29,9 @@ library
 
 test-suite test
   type: exitcode-stdio-1.0
-  main-is: Test.hs
+  main-is: Spec.hs
+  other-modules:
+      Control.HException.Test
   hs-source-dirs:
         test
   ghc-options: -Wall -Werror -O

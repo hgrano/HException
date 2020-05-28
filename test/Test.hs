@@ -2,13 +2,13 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeOperators       #-}
 
-import qualified Control.Exception as CE
+import qualified Control.Exception          as CE
 import qualified Control.Monad.Trans.Except as TE
-import           Data.Char         (isAlpha)
-import           HError            ((:^:))
-import qualified HError            as H
-import qualified System.Exit       as E
-import qualified Test.HUnit        as HUnit
+import           Data.Char                  (isAlpha)
+import           HError                     ((:^:))
+import qualified HError                     as H
+import qualified System.Exit                as E
+import qualified Test.HUnit                 as HUnit
 
 newtype SimpleError = SimpleError { unSimpleError :: String } deriving (Eq, Ord, Show)
 instance CE.Exception SimpleError
