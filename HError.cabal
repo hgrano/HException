@@ -17,6 +17,9 @@ library
   exposed-modules:
       HError
     , Control.HException
+    , Control.Monad.Trans.HExcept
+  other-modules:
+      Control.HException.Internal
   hs-source-dirs:
       src
   ghc-options: -Wall -Werror -O

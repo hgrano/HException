@@ -41,7 +41,7 @@ testTry = HUnit.TestLabel "abc" . HUnit.TestCase $ do
 
   t5 <- CE.try . CE.throwIO $ CE.DivideByZero
   HUnit.assertEqual
-    "catch HException (2) - reveresed"
+    "catch HException (2) - reversed"
     (Left (H.hException CE.DivideByZero) :: Either (HException (CE.IOException :^: CE.ArithException :^: '[])) ())
     t5
 
