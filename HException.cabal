@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
-name:           HError
+name:           HException
 version:        0.1.0.0
 description:    Heterogeneously typed error handling.
 homepage:       https://github.com/hgrano/HError
@@ -15,8 +15,7 @@ source-repository head
 
 library
   exposed-modules:
-      HError
-    , Control.HException
+      Control.HException
     , Control.Monad.Trans.HExcept
   other-modules:
       Control.HException.Internal
@@ -39,7 +38,7 @@ test-suite test
         test
   ghc-options: -Wall -Werror -O
   build-depends:
-      HError
+      HException
     , HUnit
     , base >= 4.6 && < 5
     , transformers
