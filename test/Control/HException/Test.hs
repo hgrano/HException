@@ -9,6 +9,9 @@ import           Control.HException ((:^:), HException, HException1)
 import qualified Control.HException as H
 import qualified Test.HUnit         as HUnit
 
+suite :: HUnit.Test
+suite = HUnit.TestList [testGet, testTry]
+
 testGet :: HUnit.Test
 testGet = HUnit.TestLabel "do" . HUnit.TestCase $ do
   let simple1 :: HException1 CE.ArithException = H.hException CE.DivideByZero
@@ -51,6 +54,3 @@ testTry = HUnit.TestLabel "abc" . HUnit.TestCase $ do
   let a :: IO (Either (HException1 CE.ArithException) ()) = CE.try . CE.throwIO $ CE.StackOverflow
   x <- CE.try a
   HUnit.assertEqual "we missed it" (Left CE.StackOverflow) x
-
-suite :: HUnit.Test
-suite = HUnit.TestList [testGet, testTry]

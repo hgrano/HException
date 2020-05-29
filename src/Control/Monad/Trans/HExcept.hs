@@ -13,6 +13,7 @@ module Control.Monad.Trans.HExcept(
   HExcept1,
   HExceptT,
   HExceptT1,
+  extend,
   hThrowE,
   Handler,
   HandlerT,
@@ -46,6 +47,12 @@ type HExceptT es = TE.ExceptT (HException es)
 
 -- | A specialization of 'HExceptT' for computations which can return only one type of exception.
 type HExceptT1 e = HExceptT (H.Only e)
+
+-- | Extend the given result so that it may be used in a context which can return a superset of the errors that may
+-- arise from the original result. This is useful for calling multiple functions which return different errors types
+-- from within a single function. Note: this can also be used to re-order the error types.
+extend :: (Functor m, H.Subset es es', H.TypeIndexed es') => HExceptT es m a -> HExceptT es' m a
+extend = TE.withExceptT H.generalize
 
 -- | Signal an exception value @e@.
 hThrowE :: (H.MemberAt e es n, Monad m, H.TypeIndexed es) => e -> HExceptT es m a

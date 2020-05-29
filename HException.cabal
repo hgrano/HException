@@ -34,6 +34,7 @@ test-suite test
   main-is: Spec.hs
   other-modules:
       Control.HException.Test
+    , Control.Monad.Trans.HExcept.Test
   hs-source-dirs:
         test
   ghc-options: -Wall -Werror -O

@@ -78,8 +78,8 @@ type Subset xs xs' = V.ExtendsVariant xs xs'
 
 -- | Changes the type of a 'HException' so it is more general than the original, without changing the underlying
 -- exception.
-extend :: (Subset es es', TypeIndexed es') => HException es -> HException es'
-extend (HException (T.TIC v)) = HException . T.TIC $ H.extendsVariant v
+generalize :: (Subset es es', TypeIndexed es') => HException es -> HException es'
+generalize (HException (T.TIC v)) = HException . T.TIC $ H.extendsVariant v
 
 -- | The 'E.Exception' instance for @HException es@ is able to catch any 'E.Exception's thrown whose type is in @es@.
 -- The instance throws the underlying 'E.Exception' contained in the 'HException'.

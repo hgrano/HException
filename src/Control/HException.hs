@@ -20,7 +20,7 @@ module Control.HException(
   I.getMay,
   I.get,
   I.Subset,
-  I.extend
+  I.generalize
 ) where
 
 import qualified Control.HException.Internal as I
