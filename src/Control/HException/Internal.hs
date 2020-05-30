@@ -36,6 +36,9 @@ type Only e = e :^: '[]
 -- | The type of 'HException's containing only one type of exception.
 type HException1 e = HException (Only e)
 
+-- | The type of heterogeneous exceptions consisting of both @es@ and @es'@.
+type Both es es' = H.HAppendListR es es'
+
 instance V.ShowVariant (e ': es) => Show (HException (e ': es)) where
   show = ("HException" ++) . drop 3 . show . unHException
 
@@ -73,7 +76,7 @@ getMay = H.hOccurs . unHException
 get :: HException1 e -> e
 get (HException (T.TIC v)) = H.unvariant v
 
--- | Constrain that the type-level list @xs@ contains all of the elements of the type-level list @xs'@.
+-- | Constrain that the type-level list @xs'@ contains all of the elements of the type-level list @xs@.
 type Subset xs xs' = V.ExtendsVariant xs xs'
 
 -- | Changes the type of a 'HException' so it is more general than the original, without changing the underlying

@@ -7,6 +7,7 @@ module Control.Monad.Trans.HExcept.Test (suite) where
 import qualified Control.Exception           as CE
 import           Control.HException          ((:^:))
 import qualified Control.HException          as H
+import           Control.Monad.Trans.Except  as TE
 import qualified Control.Monad.Trans.HExcept as HE
 import           Data.Char                   (isAlpha)
 import qualified Test.HUnit                  as HUnit
@@ -18,7 +19,7 @@ newtype IntError = IntError Int deriving (Eq, Ord, Show)
 instance CE.Exception IntError
 
 suite :: HUnit.Test
-suite = HUnit.TestList [testDoExample, testRecover, testHThrowE, testValue]
+suite = HUnit.TestList [testDoExample, testHCatchesE, testHThrowE, testValue]
 
 testDoExample :: HUnit.Test
 testDoExample = HUnit.TestLabel "do" . HUnit.TestCase $ do
@@ -56,30 +57,30 @@ testHThrowE = HUnit.TestLabel "raise" . HUnit.TestCase $ do
     (show composite1)
   HUnit.assertEqual "Show composite2" "ExceptT (Identity (Left HException{intError=IntError 1}))" $ show composite2
 
-testRecover :: HUnit.Test
-testRecover = HUnit.TestLabel "raise" . HUnit.TestCase $ do
+testHCatchesE :: HUnit.Test
+testHCatchesE = HUnit.TestLabel "raise" . HUnit.TestCase $ do
   let simpleErr :: HE.HExcept (SimpleError :^: IntError :^: '[]) Bool = HE.hThrowE $ SimpleError "error1"
       intErr :: HE.HExcept (SimpleError :^: IntError :^: '[]) Bool = HE.hThrowE $ IntError 1
       good :: HE.HExcept (SimpleError :^: IntError :^: '[]) Bool = return True
-  HUnit.assertEqual "handle simpleErr" (return False) $ simpleErr `HE.hCatchesE` basicHandler `HE.orElse` HE.done
-  HUnit.assertEqual "handle intErr" (HE.hThrowE CE.Overflow) $ intErr `HE.hCatchesE` basicHandler `HE.orElse` HE.done
-  HUnit.assertEqual "handle good" (return True) $ good `HE.hCatchesE` basicHandler `HE.orElse` HE.done
+  HUnit.assertEqual "handle simpleErr" (return False) $ simpleErr `TE.catchE` basicHandler
+  HUnit.assertEqual "handle intErr" (HE.hThrowE CE.Overflow) $ intErr `TE.catchE` basicHandler
+  HUnit.assertEqual "handle good" (return True) $ good `TE.catchE` basicHandler
 
   let overFlowErr :: HE.HExcept (CE.ArithException :^: SimpleError :^: IntError :^: '[]) Bool = HE.hThrowE CE.Overflow
       simpleErrExt :: HE.HExcept (CE.ArithException :^: SimpleError :^: IntError :^: '[]) Bool = HE.extend simpleErr
       goodExt :: HE.HExcept (CE.ArithException :^: SimpleError :^: IntError :^: '[]) Bool = return True
   HUnit.assertEqual "Recovers arithErr" (return False) $
-    overFlowErr `HE.hCatchesE` handleSimple `HE.orElse` handleArithAndInt `HE.orElse` HE.done
+    overFlowErr `TE.catchE` (handleSimple `HE.orElse` handleArithAndInt)
   HUnit.assertEqual "Recovers arithErr (reversed)" (return False) $
-    overFlowErr `HE.hCatchesE` handleArithAndInt `HE.orElse` handleSimple `HE.orElse` HE.done
+    overFlowErr `TE.catchE` (handleArithAndInt `HE.orElse` handleSimple)
   HUnit.assertEqual "Recovers arithErr (minimal)" (return False) $
-    overFlowErr `HE.hCatchesE` handleArithAndInt `HE.orDefault` return True
+    overFlowErr `TE.catchE` (handleArithAndInt `HE.orDefault` return True)
   HUnit.assertEqual "Recovers arithErr (default)" (HE.hThrowE "Arithmetic") $
-    overFlowErr `HE.hCatchesE` handleInt `HE.orElse` handleSimple `HE.orDefault` HE.hThrowE "Arithmetic"
+    overFlowErr `TE.catchE` (handleInt `HE.orElse` handleSimple `HE.orDefault` HE.hThrowE "Arithmetic")
   HUnit.assertEqual "Recovers simpleErrExt" (HE.hThrowE "error1") $
-    simpleErrExt `HE.hCatchesE` handleSimple `HE.orDefault` HE.hThrowE "fall through"
+    simpleErrExt `TE.catchE` (handleSimple `HE.orDefault` HE.hThrowE "fall through")
   HUnit.assertEqual "Recovers goodExt" (return True) $
-    goodExt `HE.hCatchesE` handleSimple `HE.orElse` handleArithAndInt `HE.orElse` HE.done
+    goodExt `TE.catchE` (handleSimple `HE.orElse` handleArithAndInt)
 
   where
     handleInt :: HE.Handler (H.Only IntError) (H.Only String) Bool

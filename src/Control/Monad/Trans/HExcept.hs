@@ -1,3 +1,4 @@
+{-# LANGUAGE ConstraintKinds        #-}
 {-# LANGUAGE DataKinds              #-}
 {-# LANGUAGE FlexibleContexts       #-}
 {-# LANGUAGE FlexibleInstances      #-}
@@ -13,14 +14,14 @@ module Control.Monad.Trans.HExcept(
   HExcept1,
   HExceptT,
   HExceptT1,
+  hExceptT,
   extend,
   hThrowE,
   Handler,
   HandlerT,
-  HCatchesE(..),
+  DeleteAll,
+  handler1,
   orElse,
-  Done,
-  done,
   orDefault,
   Value,
   ValueT,
@@ -31,12 +32,11 @@ import           Control.HException          (HException)
 import qualified Control.HException          as H
 import qualified Control.HException.Internal as I
 import qualified Control.Monad.Trans.Except  as TE
-import           Data.Functor.Identity       (Identity)
+import           Data.Functor.Identity       (Identity (runIdentity))
 import qualified Data.HList.CommonMain       as HC
 import qualified Data.HList.TIC              as T
-import qualified Data.HList.Variant          as V
 
--- | The heterogeneous exception monad. Computations are either one of a known set of exceptions @es@ or a value @a@.
+-- | The heterogeneous exception monad. Computations are either one of a known set of exceptions @es@ or a value.
 type HExcept es = TE.Except (HException es)
 
 -- | A specialization of 'HExcept' for computations which can return only one type of exception.
@@ -47,6 +47,11 @@ type HExceptT es = TE.ExceptT (HException es)
 
 -- | A specialization of 'HExceptT' for computations which can return only one type of exception.
 type HExceptT1 e = HExceptT (H.Only e)
+
+-- | Lift a 'HExcept' into its monad transformer version. This is provided so 'HExcept' can be easily used instead of
+-- 'Either'.
+hExceptT :: Monad m => HExcept es a -> HExceptT es m a
+hExceptT = TE.mapExceptT (return . runIdentity)
 
 -- | Extend the given result so that it may be used in a context which can return a superset of the errors that may
 -- arise from the original result. This is useful for calling multiple functions which return different errors types
@@ -64,12 +69,6 @@ type Handler es es' a = HandlerT es es' Identity a
 -- | The monad transformer version of 'Handler'.
 type HandlerT es es' m a = HException es -> HExceptT es' m a
 
--- | Type class needed for heterogeneous and polymorphic  exception handling. Do not create instances of this class.
-class Monad m => HCatchesE es fs es' m a | es fs -> es' m a where
-  -- | Handle exceptions using a heterogeneous list of 'HandlerT's, and (optionally) a default value.
-  hCatchesE :: HExceptT es m a -> HC.HList fs -> HExceptT es' m a
-  infixr 1 `hCatchesE`
-
 -- | Delete all members of the type-level list @l@ from the type-level list @m@.
 class DeleteAll (l :: [*])  (m :: [*]) (m' :: [*]) | l m -> m'
 
@@ -77,48 +76,25 @@ instance (HC.HDeleteMany l (HC.HList m) (HC.HList m'), DeleteAll l' m' m'') => D
 
 instance DeleteAll '[] m m
 
-sliceVariant :: (HC.SplitVariant x xl xr, DeleteAll xl x xr) => HC.Variant x -> Either (HC.Variant xl) (HC.Variant xr)
+-- | Split @xs@ into two groups @xs'@ and @xs''@.
+type Slice xs xs' xs'' = (HC.SplitVariant xs xs' xs'', DeleteAll xs' xs xs'')
+
+sliceVariant :: Slice x xl xr => HC.Variant x -> Either (HC.Variant xl) (HC.Variant xr)
 sliceVariant = HC.splitVariant
 
-instance (HC.SplitVariant es es' os,
-          DeleteAll es' es os,
-          HCatchesE os (HandlerT x x' m a ': fs) es'' m a,
-          H.TypeIndexed es'') => HCatchesE es (HandlerT es' es'' m a ': HandlerT x x' m a ': fs) es'' m a where
-  hCatchesE r fs = TE.catchE r $ \(I.HException (T.TIC v)) -> case sliceVariant v of
-    Left e  -> HC.hHead fs . I.HException $ T.TIC e
-    Right o -> hCatchesE (TE.throwE . I.HException $ T.TIC o) $ HC.hTail fs
-
-instance (HC.SameLength es es', HC.ExtendsVariant es es', Monad m, H.TypeIndexed es'') =>
-         HCatchesE es '[HandlerT es' es'' m a] es'' m a where
-  hCatchesE r fs = TE.catchE r $ \(I.HException (T.TIC v)) ->
-    HC.hHead fs . I.HException . T.TIC $ V.rearrangeVariant v
-
-instance (DeleteAll es' es os,  -- Constrain this so that the instance only applies if not all  exceptions have been handled
-         HC.HLengthGe os ('HC.HSucc 'HC.HZero), -- using this length constraint.
-         HC.ProjectVariant es es',
-         Monad m,
-         H.TypeIndexed es'') =>
-         HCatchesE es '[HandlerT es' es'' m a, HExceptT es'' m a] es'' m a where
-  hCatchesE r fs = TE.catchE r $ \(I.HException (T.TIC v)) -> case HC.projectVariant v of
-    Just e  -> HC.hHead fs . I.HException $ T.TIC e
-    Nothing -> HC.hLast fs
+-- | Construct a handler from a function which operates on the underlying exception type.
+handler1 :: (e -> HExceptT es m a) -> HandlerT (H.Only e) es m a
+handler1 f = f . H.get
 
 -- | Chain 'HandlerT's together.
-orElse :: HandlerT es es' m a -> HC.HList fs -> HC.HList (HandlerT es es' m a ': fs)
-orElse = HC.HCons
+orElse :: Slice es'' es es' => HandlerT es os m a -> HandlerT es' os m a -> HandlerT es'' os m a
+orElse f g (I.HException (T.TIC v)) = either (f . I.HException . T.TIC) (g . I.HException . T.TIC) $ sliceVariant v
 infixr 2 `orElse`
 
--- | Type indicating all  exception types have been handled.
-type Done = HC.HList '[]
-
--- | Use this at the end of a chain of 'Handler's to assert (at compile time) complete coverage of all  exception types.
-done :: Done
-done = HC.HNil
-
--- | An alternative to 'done' which attempts to use the provided 'Handler', or if the 'Handler' does not apply,
--- returns a default 'Result'.
-orDefault :: HandlerT es es' m a -> HExceptT es' m a -> HC.HList '[HandlerT es es' m a, HExceptT es' m a]
-orDefault h r = h `HC.HCons` r `HC.HCons` HC.HNil
+orDefault :: HC.ProjectVariant es' es => HandlerT es os m a -> HExceptT os m a -> HandlerT es' os m a
+orDefault f d (I.HException (T.TIC  v)) = case HC.projectVariant v of
+  Just x  -> f . I.HException $ T.TIC x
+  Nothing -> d
 
 -- | A specialization of 'HExcept' for computations in which all possible exception types have been dealt with using
 -- 'TE.catchE' or 'hCatchesE'. This means the domain of possible  exceptions is empty.
