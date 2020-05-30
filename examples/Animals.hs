@@ -11,9 +11,8 @@ import           Control.Monad.Trans.Class   (lift)
 import           Control.Monad.Trans.Except  (ExceptT (ExceptT), catchE,
                                               runExceptT)
 import           Control.Monad.Trans.HExcept (HExcept, HExcept1, HExceptT,
-                                              HandlerT, ValueT, extend,
-                                              hExceptT, hThrowE, handler1,
-                                              orElse, value)
+                                              HandlerT, extend, hExceptT,
+                                              hThrowE, handler1, orElse, value)
 import           Data.Char                   (isAlpha)
 import           System.Environment          (getArgs)
 import           System.Exit                 (exitFailure)
@@ -137,24 +136,21 @@ processAnimalFiles catFile dogFile = do
 
 type AnimalHandler es = HandlerT es '[] IO ()
 
-display :: String -> ValueT IO ()
-display = lift . putStrLn
-
 displayFileProblem :: AnimalHandler FileError
 displayFileProblem =
-  (handler1 $ \(FileDoesNotExistError f) -> display $ f ++ " could not be found") `orElse`
-  (handler1 $ \(FilePermissionError f) -> display $ "You do not have permission to read " ++ f) `orElse`
-  (handler1 $ \(GeneralFileReadError f _) -> display $ "A problem was encountered reading " ++ f) `orElse`
-  (handler1 $ \(FileLengthError f) -> display $ f ++ " is too large to process")
+  handler1 (\(FileDoesNotExistError f) -> lift . putStrLn $ f ++ " could not be found") `orElse`
+  handler1 (\(FilePermissionError f) -> lift . putStrLn $ "You do not have permission to read " ++ f) `orElse`
+  handler1 (\(GeneralFileReadError f _) -> lift . putStrLn $ "A problem was encountered reading " ++ f) `orElse`
+  handler1 (\(FileLengthError f) -> lift . putStrLn $ f ++ " is too large to process")
 
 displayParseProblem :: AnimalHandler AnimalsParseError
 displayParseProblem =
-  (handler1 $ \(InvalidName n) -> display $ n ++ " is not a valid name") `orElse`
-  (handler1 $ \(InvalidCatBreed b) -> display $ b ++ " is not a valid cat breed") `orElse`
-  (handler1 $ \(InvalidDogBreed b) -> display $ b ++ " is not a valid dog breed") `orElse`
-  (handler1 $ \(InvalidCatFormat _) -> display "Malformed cat file") `orElse`
-  (handler1 $ \(InvalidDogFormat _) -> display "Malformed dog file") `orElse`
-  (handler1 $ \(InvalidDogType t) -> display $ t ++ " is not a valid dog type")
+  handler1 (\(InvalidName n) -> lift . putStrLn $ n ++ " is not a valid name") `orElse`
+  handler1 (\(InvalidCatBreed b) -> lift . putStrLn $ b ++ " is not a valid cat breed") `orElse`
+  handler1 (\(InvalidDogBreed b) -> lift . putStrLn $ b ++ " is not a valid dog breed") `orElse`
+  handler1 (\(InvalidCatFormat _) -> lift $ putStrLn "Malformed cat file") `orElse`
+  handler1 (\(InvalidDogFormat _) -> lift $ putStrLn "Malformed dog file") `orElse`
+  handler1 (\(InvalidDogType t) -> lift . putStrLn $ t ++ " is not a valid dog type")
 
 main :: IO ()
 main = do
