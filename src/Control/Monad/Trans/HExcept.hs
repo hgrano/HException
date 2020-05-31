@@ -99,6 +99,7 @@ orElse :: Slice es'' es es' => HandlerT es os m a -> HandlerT es' os m a -> Hand
 orElse f g (I.HException (T.TIC v)) = either (f . I.HException . T.TIC) (g . I.HException . T.TIC) $ sliceVariant v
 infixr 2 `orElse`
 
+-- | Try to use the provided 'HandlerT' or, if that handler does not apply, return the default.
 orDefault :: HC.ProjectVariant es' es => HandlerT es os m a -> HExceptT os m a -> HandlerT es' os m a
 orDefault f d (I.HException (T.TIC  v)) = case HC.projectVariant v of
   Just x  -> f . I.HException $ T.TIC x

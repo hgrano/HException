@@ -111,6 +111,9 @@ type Slice xs xs' xs'' = (SplitVariant xs xs' xs'', DeleteAll xs' xs xs'')
 
 -- | Chain <a>HandlerT</a>s together.
 orElse :: Slice es'' es es' => HandlerT es os m a -> HandlerT es' os m a -> HandlerT es'' os m a
+
+-- | Try to use the provided <a>HandlerT</a> or, if that handler does not
+--   apply, return the default.
 orDefault :: ProjectVariant es' es => HandlerT es os m a -> HExceptT os m a -> HandlerT es' os m a
 
 -- | A specialization of <a>HExcept</a> for computations in which all

@@ -11,13 +11,13 @@
 
 module Control.HException.Internal where
 
-import Data.Proxy (Proxy(Proxy))
 import qualified Control.Exception     as E
 import qualified Data.HList.CommonMain as H
 import qualified Data.HList.TIC        as T
 import qualified Data.HList.TIP        as TP
 import qualified Data.HList.Variant    as V
-import           Data.Typeable       (Typeable)
+import           Data.Proxy            (Proxy (Proxy))
+import           Data.Typeable         (Typeable)
 
 -- This module provides an internal interface which enables de-constructing a HException into a TIC. Type classes
 -- instances for HExceptions are also defined here
