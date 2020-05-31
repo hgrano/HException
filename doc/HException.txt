@@ -16,8 +16,7 @@ module Control.HException
 data HException es
 
 -- | Type alias for ease of constructing exception type-level lists.
-type e :^: es = Tagged e e : es
-infixr 7 :^:
+type (:^:) e es = Tagged e e : es
 
 -- | A singleton exception type-level list.
 type Only e = e :^: '[]
@@ -31,17 +30,13 @@ type Both es es' = HAppendListR es es'
 
 -- | The type-level list <tt>xs</tt> is constrained to contain only
 --   distinct types, and so can be indexed via type alone.
-type TypeIndexed xs = (HAllTaggedEq xs, HLabelSet (LabelsOf xs), HAllTaggedLV xs)
-
--- | The type <tt>x</tt> is contained in the type-level list <tt>xs</tt> at
---   index <tt>n</tt>.
-type MemberAt x xs n = (HasField x (Record xs) x, HFind1 x (UnLabel x (LabelsOf xs)) (UnLabel x (LabelsOf xs)) n, KnownNat (HNat2Nat n))
-
--- | Construct a <a>HException</a> from a standard exception value.
-hException :: (MemberAt e es n, TypeIndexed es) => e -> HException es
+type TypeIndexed xs = HTypeIndexed xs
 
 -- | The type <tt>x</tt> is contained in the type-level list <tt>xs</tt>.
-type Member x xs = (HasField x (TIC xs) (Maybe x))
+type Member x xs = MkVariant x x xs
+
+-- | Construct a <a>HException</a> from a standard exception value.
+hException :: (Member e es, TypeIndexed es) => e -> HException es
 
 -- | Extract an exception of a specific type from a <a>HException</a>.
 --   Returns <a>Nothing</a> if the exception encased is not of the required
@@ -91,7 +86,7 @@ hExceptT :: Applicative m => HExcept es a -> HExceptT es m a
 extend :: (Functor m, Subset es es', TypeIndexed es') => HExceptT es m a -> HExceptT es' m a
 
 -- | Signal an exception value <tt>e</tt>.
-hThrowE :: (MemberAt e es n, Monad m, TypeIndexed es) => e -> HExceptT es m a
+hThrowE :: (Member e es, Monad m, TypeIndexed es) => e -> HExceptT es m a
 
 -- | The type of functions used to handle the exceptions <tt>es</tt>, which
 --   may return the exceptions <tt>es'</tt>.
@@ -116,7 +111,6 @@ type Slice xs xs' xs'' = (SplitVariant xs xs' xs'', DeleteAll xs' xs xs'')
 
 -- | Chain <a>HandlerT</a>s together.
 orElse :: Slice es'' es es' => HandlerT es os m a -> HandlerT es' os m a -> HandlerT es'' os m a
-infixr 2 `orElse`
 orDefault :: ProjectVariant es' es => HandlerT es os m a -> HExceptT os m a -> HandlerT es' os m a
 
 -- | A specialization of <a>HExcept</a> for computations in which all
