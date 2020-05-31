@@ -1,3 +1,5 @@
+-- | Heterogeneously typed exceptions.
+
 {-# LANGUAGE ConstraintKinds       #-}
 {-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE FlexibleContexts      #-}

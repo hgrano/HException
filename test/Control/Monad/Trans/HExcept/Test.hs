@@ -19,7 +19,7 @@ newtype IntError = IntError Int deriving (Eq, Ord, Show)
 instance CE.Exception IntError
 
 suite :: HUnit.Test
-suite = HUnit.TestList [testDoExample, testHCatchesE, testHThrowE, testValue]
+suite = HUnit.TestList [testDoExample, testHandling, testHThrowE, testValue]
 
 testDoExample :: HUnit.Test
 testDoExample = HUnit.TestLabel "do" . HUnit.TestCase $ do
@@ -43,26 +43,14 @@ testDoExample = HUnit.TestLabel "do" . HUnit.TestCase $ do
       numWords <- HE.extend $ processStr str
       HE.extend $ safeDivide numWords n
 
-testHThrowE :: HUnit.Test
-testHThrowE = HUnit.TestLabel "raise" . HUnit.TestCase $ do
-  let simple1 :: HE.HExcept1 SimpleError Int = HE.hThrowE $ SimpleError "error1"
-      simple2 :: HE.HExcept1 SimpleError Int = HE.hThrowE $ SimpleError "error2"
-  HUnit.assertBool "HException not equal to non-error" (simple1 /= return 1)
-  HUnit.assertBool "HException not equal to different error" (simple1 /= simple2)
-
-  let composite1 :: HE.HExcept (SimpleError :^: IntError :^: '[]) Int = HE.hThrowE $ SimpleError "error1"
-      composite2 :: HE.HExcept (SimpleError :^: IntError :^: '[]) Int = HE.hThrowE $ IntError 1
-  HUnit.assertEqual
-    "Show composite1" "ExceptT (Identity (Left HException{simpleError=SimpleError {unSimpleError = \"error1\"}}))"
-    (show composite1)
-  HUnit.assertEqual "Show composite2" "ExceptT (Identity (Left HException{intError=IntError 1}))" $ show composite2
-
-testHCatchesE :: HUnit.Test
-testHCatchesE = HUnit.TestLabel "raise" . HUnit.TestCase $ do
+testHandling :: HUnit.Test
+testHandling = HUnit.TestLabel "raise" . HUnit.TestCase $ do
   let simpleErr :: HE.HExcept (SimpleError :^: IntError :^: '[]) Bool = HE.hThrowE $ SimpleError "error1"
+      simpleErrMay :: HE.HExceptT (SimpleError :^: IntError :^: '[]) Maybe Bool = HE.hExceptT simpleErr
       intErr :: HE.HExcept (SimpleError :^: IntError :^: '[]) Bool = HE.hThrowE $ IntError 1
       good :: HE.HExcept (SimpleError :^: IntError :^: '[]) Bool = return True
   HUnit.assertEqual "handle simpleErr" (return False) $ simpleErr `TE.catchE` basicHandler
+  HUnit.assertEqual "handle simpleErrMay" (return False) $ simpleErrMay `TE.catchE` HE.handlerT basicHandler
   HUnit.assertEqual "handle intErr" (HE.hThrowE CE.Overflow) $ intErr `TE.catchE` basicHandler
   HUnit.assertEqual "handle good" (return True) $ good `TE.catchE` basicHandler
 
@@ -84,10 +72,10 @@ testHCatchesE = HUnit.TestLabel "raise" . HUnit.TestCase $ do
 
   where
     handleInt :: HE.Handler (H.Only IntError) (H.Only String) Bool
-    handleInt e = if H.get e == IntError 0 then return True else HE.hThrowE "Non-zero"
+    handleInt = HE.handler1 $ \e -> if e == IntError 0 then return True else HE.hThrowE "Non-zero"
 
     handleSimple :: HE.Handler (H.Only SimpleError) (H.Only String) Bool
-    handleSimple = HE.hThrowE . unSimpleError . H.get
+    handleSimple = HE.handler1 $ HE.hThrowE . unSimpleError
 
     handleArithAndInt :: HE.Handler (CE.ArithException :^: IntError :^: '[]) (H.Only String) Bool
     handleArithAndInt e = case H.getMay e of
@@ -100,6 +88,21 @@ testHCatchesE = HUnit.TestLabel "raise" . HUnit.TestCase $ do
       Just (SimpleError _) -> return False
       Nothing              -> HE.hThrowE CE.Overflow
 
+testHThrowE :: HUnit.Test
+testHThrowE = HUnit.TestLabel "raise" . HUnit.TestCase $ do
+  let simple1 :: HE.HExcept1 SimpleError Int = HE.hThrowE $ SimpleError "error1"
+      simple2 :: HE.HExcept1 SimpleError Int = HE.hThrowE $ SimpleError "error2"
+  HUnit.assertBool "HException not equal to non-error" (simple1 /= return 1)
+  HUnit.assertBool "HException not equal to different error" (simple1 /= simple2)
+
+  let composite1 :: HE.HExcept (SimpleError :^: IntError :^: '[]) Int = HE.hThrowE $ SimpleError "error1"
+      composite2 :: HE.HExcept (SimpleError :^: IntError :^: '[]) Int = HE.hThrowE $ IntError 1
+  HUnit.assertEqual
+    "Show composite1" "ExceptT (Identity (Left HException{simpleError=SimpleError {unSimpleError = \"error1\"}}))"
+    (show composite1)
+  HUnit.assertEqual "Show composite2" "ExceptT (Identity (Left HException{intError=IntError 1}))" $ show composite2
+
 testValue :: HUnit.Test
-testValue = HUnit.TestLabel "raise" . HUnit.TestCase $
+testValue = HUnit.TestLabel "raise" . HUnit.TestCase $ do
+  HUnit.assertEqual "value" (Just 1) (HE.valueT (return 1 :: HE.ValueT Maybe Int))
   HUnit.assertEqual "value" 1 (HE.value (return 1 :: HE.Value Int))

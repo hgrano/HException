@@ -1,3 +1,5 @@
+-- | Functions for handling 'HException's using 'Control.Monad.Trans.Except.ExceptT'.
+
 {-# LANGUAGE ConstraintKinds        #-}
 {-# LANGUAGE DataKinds              #-}
 {-# LANGUAGE FlexibleContexts       #-}
@@ -19,13 +21,16 @@ module Control.Monad.Trans.HExcept(
   hThrowE,
   Handler,
   HandlerT,
-  DeleteAll,
   handler1,
+  handlerT,
+  DeleteAll,
+  Slice,
   orElse,
   orDefault,
   Value,
   ValueT,
-  value
+  value,
+  valueT
 ) where
 
 import           Control.HException          (HException)
@@ -48,10 +53,9 @@ type HExceptT es = TE.ExceptT (HException es)
 -- | A specialization of 'HExceptT' for computations which can return only one type of exception.
 type HExceptT1 e = HExceptT (H.Only e)
 
--- | Lift a 'HExcept' into its monad transformer version. This is provided so 'HExcept' can be easily used instead of
--- 'Either'.
-hExceptT :: Monad m => HExcept es a -> HExceptT es m a
-hExceptT = TE.mapExceptT (return . runIdentity)
+-- | Lift a 'HExcept' into its transformer version.
+hExceptT :: Applicative m => HExcept es a -> HExceptT es m a
+hExceptT = TE.mapExceptT (pure . runIdentity)
 
 -- | Extend the given result so that it may be used in a context which can return a superset of the errors that may
 -- arise from the original result. This is useful for calling multiple functions which return different errors types
@@ -69,6 +73,14 @@ type Handler es es' a = HandlerT es es' Identity a
 -- | The monad transformer version of 'Handler'.
 type HandlerT es es' m a = HException es -> HExceptT es' m a
 
+-- | Construct a handler from a function which operates on the underlying exception type.
+handler1 :: (e -> HExceptT es m a) -> HandlerT (H.Only e) es m a
+handler1 f = f . H.get
+
+-- | Lift a (pure) handler into @m@.
+handlerT :: Applicative m => Handler es es' a -> HandlerT es es' m a
+handlerT f = hExceptT . f
+
 -- | Delete all members of the type-level list @l@ from the type-level list @m@.
 class DeleteAll (l :: [*])  (m :: [*]) (m' :: [*]) | l m -> m'
 
@@ -82,10 +94,6 @@ type Slice xs xs' xs'' = (HC.SplitVariant xs xs' xs'', DeleteAll xs' xs xs'')
 sliceVariant :: Slice x xl xr => HC.Variant x -> Either (HC.Variant xl) (HC.Variant xr)
 sliceVariant = HC.splitVariant
 
--- | Construct a handler from a function which operates on the underlying exception type.
-handler1 :: (e -> HExceptT es m a) -> HandlerT (H.Only e) es m a
-handler1 f = f . H.get
-
 -- | Chain 'HandlerT's together.
 orElse :: Slice es'' es es' => HandlerT es os m a -> HandlerT es' os m a -> HandlerT es'' os m a
 orElse f g (I.HException (T.TIC v)) = either (f . I.HException . T.TIC) (g . I.HException . T.TIC) $ sliceVariant v
@@ -96,8 +104,8 @@ orDefault f d (I.HException (T.TIC  v)) = case HC.projectVariant v of
   Just x  -> f . I.HException $ T.TIC x
   Nothing -> d
 
--- | A specialization of 'HExcept' for computations in which all possible exception types have been dealt with using
--- 'TE.catchE' or 'hCatchesE'. This means the domain of possible  exceptions is empty.
+-- | A specialization of 'HExcept' for computations in which all possible exception types have been dealt with. This
+-- means the domain of possible  exceptions is empty.
 type Value = HExcept '[]
 
 -- | The monad transformer version of 'Value'.
@@ -105,9 +113,13 @@ type ValueT = HExceptT '[]
 
 -- | Extract the value from a computation result after all exceptions have been handled. This is type-safe because the
 -- type of  exceptions is constrained to be empty.
-value :: Monad m => ValueT m a -> m a
-value v = do
+value :: Value a -> a
+value = runIdentity . valueT
+
+-- | Monad transformer version of 'value'.
+valueT :: Monad m => ValueT m a -> m a
+valueT v = do
   x <- TE.runExceptT v
   case x of
     Right r -> return r
-    Left _ -> error "HException internal error: unexpected error inside a 'Value'"
+    Left _ -> error "HException internal error: unexpected error inside a 'ValueT'"
