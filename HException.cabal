@@ -1,0 +1,59 @@
+cabal-version: 1.12
+
+name:           HException
+version:        0.1.0.0
+description:    Heterogeneously typed error handling.
+homepage:       https://github.com/hgrano/HError
+bug-reports:    https://github.com/hgrano/HError/issues
+author:         Huw Grano
+maintainer:     huw.grano@gmail.com
+build-type:     Simple
+
+source-repository head
+  type: git
+  location: https://github.com/hgrano/HError
+
+library
+  exposed-modules:
+      Control.HException
+    , Control.Monad.Trans.HExcept
+  other-modules:
+      Control.HException.Internal
+  hs-source-dirs:
+      src
+  ghc-options: -Wall -Werror
+  build-depends:
+      base >= 4.6 && < 5
+    , HList >= 0.4.0.0 && < 0.6.0.0
+    , tagged >= 0.8.0.0 && < 1
+    , transformers >= 0.4.0.0 && < 0.6.0.0
+  default-language: Haskell2010
+
+test-suite test
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      Control.HException.Test
+    , Control.Monad.Trans.HExcept.Test
+  hs-source-dirs:
+        test
+  ghc-options: -Wall -Werror
+  build-depends:
+      HException
+    , HUnit
+    , base >= 4.6 && < 5
+    , transformers
+  default-language: Haskell2010
+
+test-suite examples
+  type: exitcode-stdio-1.0
+  main-is: Main.hs
+  other-modules:
+      Animals
+  hs-source-dirs: examples
+  build-depends:
+      HException
+    , base >= 4.6 && < 5
+    , transformers
+  ghc-options: -Wall
+  default-langauage: Haskell2010
