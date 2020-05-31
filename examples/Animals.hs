@@ -23,11 +23,11 @@ import           System.IO.Error             (IOError, isDoesNotExistError,
 -- This example is loosely based on this blog post http://www.mega-nerd.com/erikd/Blog/CodeHacking/Haskell/what_do_you_mean.html
 -- It is recommend to read the original post to see more traditional Haskell approaches to the problem. The solution
 -- in that post was to add extra sum types for exceptions (wrapping the original exception types). This example
--- shows how heterogeneous exceptions can remove the requirement on additional sum types. The example assumes a basic
+-- shows how heterogeneous exceptions can remove the requirement on additional sum types. A basic
 -- understanding of Monad transformers (transformers package) and, in particular, the 'Control.Monad.Trans.Except'
--- module.
+-- module, is assumed.
 
--- We are going to read some files containing information about cats and dogs. Let's start of defining our
+-- We are going to read some files containing information about cats and dogs. Let's start off defining our
 -- mock data types to represent these animals:
 data CatBreed = BritishShortHair | Burmese | Siamese deriving (Show, Eq, Ord)
 
@@ -205,7 +205,8 @@ main = do
             return $ "Successfully processed " ++ catName cat ++ " and " ++ dogName dog
       in do
       -- 'valueT' extracts the value out of a 'HExceptT', but is type safe - i.e. it won't compile unless we have
-      -- handled all exceptions
+      -- handled all exceptions.
+      -- 'handlerT' helps to lift pure exception handling function into a monad (IO in this case)
       message <- valueT $ process `catchE` handlerT (displayFileProblem `orElse` displayParseProblem)
       -- If we don't want to provide handlers for every exception we can give a default value instead. On an error the
       -- default value is returned if none of the handlers are compatible with exception
