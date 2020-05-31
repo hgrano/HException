@@ -1,5 +1,4 @@
-resolver: lts-13.17
+resolver: lts-6.35
 
 packages:
-- HList
 - .

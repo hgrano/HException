@@ -64,7 +64,7 @@ extend :: (Functor m, H.Subset es es', H.TypeIndexed es') => HExceptT es m a -> 
 extend = TE.withExceptT H.generalize
 
 -- | Signal an exception value @e@.
-hThrowE :: (H.MemberAt e es n, Monad m, H.TypeIndexed es) => e -> HExceptT es m a
+hThrowE :: (H.Member e es, Monad m, H.TypeIndexed es) => e -> HExceptT es m a
 hThrowE = TE.throwE . H.hException
 
 -- | The type of functions used to handle the exceptions @es@, which may return the exceptions @es'@.

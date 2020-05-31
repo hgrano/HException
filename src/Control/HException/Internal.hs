@@ -11,13 +11,13 @@
 
 module Control.HException.Internal where
 
+import Data.Proxy (Proxy(Proxy))
 import qualified Control.Exception     as E
 import qualified Data.HList.CommonMain as H
 import qualified Data.HList.TIC        as T
 import qualified Data.HList.TIP        as TP
 import qualified Data.HList.Variant    as V
-import           GHC.TypeLits          (KnownNat)
-import           Type.Reflection       (Typeable)
+import           Data.Typeable       (Typeable)
 
 -- This module provides an internal interface which enables de-constructing a HException into a TIC. Type classes
 -- instances for HExceptions are also defined here
@@ -53,19 +53,14 @@ deriving instance Ord (HException '[])
 deriving instance (Ord e, Ord (V.Variant es)) => Ord (HException (e ': es))
 
 -- | The type-level list @xs@ is constrained to contain only distinct types, and so can be indexed via type alone.
-type TypeIndexed xs = (TP.HAllTaggedEq xs, H.HLabelSet (H.LabelsOf xs), H.HAllTaggedLV xs)
-
--- | The type @x@ is contained in the type-level list @xs@ at index @n@.
-type MemberAt x xs n = (H.HasField x (H.Record xs) x,
-                      H.HFind1 x (H.UnLabel x (H.LabelsOf xs)) (H.UnLabel x (H.LabelsOf xs)) n,
-                      KnownNat (H.HNat2Nat n))
-
--- | Construct a 'HException' from a standard exception value.
-hException :: (MemberAt e es n, TypeIndexed es) => e -> HException es
-hException = HException . H.mkTIC
+type TypeIndexed xs = TP.HTypeIndexed xs
 
 -- | The type @x@ is contained in the type-level list @xs@.
-type Member x xs = (H.HasField x (H.TIC xs) (Maybe x))
+type Member x xs = V.MkVariant x x xs
+
+-- | Construct a 'HException' from a standard exception value.
+hException :: (Member e es, TypeIndexed es) => e -> HException es
+hException e = HException $ H.mkTIC' e Proxy
 
 -- | Extract an exception of a specific type from a 'HException'. Returns 'Nothing' if the exception encased is
 -- not of the required type.
