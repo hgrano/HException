@@ -15,10 +15,12 @@ suite = HUnit.TestList [testDisplay, testGet, testTry]
 testDisplay :: HUnit.Test
 testDisplay = HUnit.TestLabel "display" . HUnit.TestCase $ do
   let simple :: HException1 CE.ArithException = H.hException CE.DivideByZero
-  let extended :: HException (CE.ArithException :^: CE.AsyncException :^: '[]) = H.generalize simple
+  let extended1 :: HException (CE.AsyncException :^: CE.ArithException :^: '[]) = H.generalize simple
+      extended2 :: HException (CE.ArithException :^: CE.AsyncException :^: '[]) = H.generalize simple
       display = "divide by zero"
   HUnit.assertEqual "display simple1" display $ CE.displayException simple
-  HUnit.assertEqual "display extended1" display $ CE.displayException extended
+  HUnit.assertEqual "display extended1" display $ CE.displayException extended1
+  HUnit.assertEqual "display extended2" display $ CE.displayException extended2
 
 testGet :: HUnit.Test
 testGet = HUnit.TestLabel "do" . HUnit.TestCase $ do
