@@ -94,9 +94,15 @@ instance (E.Exception e,
     Just (e :: e) -> Just $ hException e
     Nothing -> (\(HException (T.TIC v)) -> HException . T.TIC $ H.extendVariant v) <$> E.fromException se
 
+  displayException (HException (T.TIC v)) = case H.splitVariant1 v of
+    Left e   -> E.displayException e
+    Right es -> E.displayException . HException $ T.TIC es
+
 instance E.Exception e => E.Exception (HException (Only e)) where
   toException = E.toException . get
 
   fromException se = case E.fromException se of
     Just (e :: e) -> Just $ hException e
     Nothing       -> Nothing
+
+  displayException = E.displayException . get
