@@ -21,6 +21,8 @@ module Control.HException(
   I.hException,
   I.getMay,
   I.get,
+  I.Slice,
+  I.slice,
   I.Subset,
   I.generalize
 ) where

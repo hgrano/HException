@@ -1,13 +1,15 @@
-{-# LANGUAGE ConstraintKinds       #-}
-{-# LANGUAGE DataKinds             #-}
-{-# LANGUAGE FlexibleContexts      #-}
-{-# LANGUAGE FlexibleInstances     #-}
-{-# LANGUAGE MonoLocalBinds        #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE ScopedTypeVariables   #-}
-{-# LANGUAGE StandaloneDeriving    #-}
-{-# LANGUAGE TypeOperators         #-}
-{-# LANGUAGE UndecidableInstances  #-}
+{-# LANGUAGE ConstraintKinds        #-}
+{-# LANGUAGE DataKinds              #-}
+{-# LANGUAGE FlexibleContexts       #-}
+{-# LANGUAGE FlexibleInstances      #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE KindSignatures         #-}
+{-# LANGUAGE MonoLocalBinds         #-}
+{-# LANGUAGE MultiParamTypeClasses  #-}
+{-# LANGUAGE ScopedTypeVariables    #-}
+{-# LANGUAGE StandaloneDeriving     #-}
+{-# LANGUAGE TypeOperators          #-}
+{-# LANGUAGE UndecidableInstances   #-}
 
 module Control.HException.Internal where
 
@@ -70,6 +72,23 @@ getMay = H.hOccurs . unHException
 -- | Specialization of 'getMay' for cases where there is only a single type of exception.
 get :: HException1 e -> e
 get (HException (T.TIC v)) = H.unvariant v
+
+-- | Delete all members of the type-level list @l@ from the type-level list @m@.
+class DeleteAll (l :: [*])  (m :: [*]) (m' :: [*]) | l m -> m'
+
+instance (H.HDeleteMany l (H.HList m) (H.HList m'), DeleteAll l' m' m'') => DeleteAll (l ': l') m m''
+
+instance DeleteAll '[] m m
+
+-- | Split @xs@ into two groups @xs'@ and @xs''@.
+type Slice xs xs' xs'' = (H.SplitVariant xs xs' xs'', DeleteAll xs' xs xs'')
+
+-- | Extract either the exceptions in the left type-level list @el@ if the type of the underlying exception is in @el@,
+-- or otherwise return an exception in the right type-level list.
+slice :: Slice es el er => HException es -> Either (HException el) (HException er)
+slice (HException (T.TIC v)) = case H.splitVariant v of
+  Left l  -> Left . HException $ T.TIC l
+  Right r -> Right . HException $ T.TIC r
 
 -- | Constrain that the type-level list @xs'@ contains all of the elements of the type-level list @xs@.
 type Subset xs xs' = V.ExtendsVariant xs xs'
