@@ -78,7 +78,10 @@ handlerT :: Applicative m => Handler es es' a -> HandlerT es es' m a
 handlerT f = hExceptT . f
 
 -- | Chain 'HandlerT's together.
-orElse :: H.Slice es'' es es' => HandlerT es os m a -> HandlerT es' os m a -> HandlerT es'' os m a
+orElse :: (H.Slice es'' es es', H.TypeIndexed es, H.TypeIndexed es') =>
+           HandlerT es os m a ->
+           HandlerT es' os m a ->
+           HandlerT es'' os m a
 orElse f g e = either f g $ H.slice e
 infixr 2 `orElse`
 

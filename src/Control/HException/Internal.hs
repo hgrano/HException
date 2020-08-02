@@ -85,7 +85,7 @@ type Slice xs xs' xs'' = (H.SplitVariant xs xs' xs'', DeleteAll xs' xs xs'')
 
 -- | Extract either the exceptions in the left type-level list @el@ if the type of the underlying exception is in @el@,
 -- or otherwise return an exception in the right type-level list.
-slice :: Slice es el er => HException es -> Either (HException el) (HException er)
+slice :: (Slice es el er, TypeIndexed el, TypeIndexed er) => HException es -> Either (HException el) (HException er)
 slice (HException (T.TIC v)) = case H.splitVariant v of
   Left l  -> Left . HException $ T.TIC l
   Right r -> Right . HException $ T.TIC r
