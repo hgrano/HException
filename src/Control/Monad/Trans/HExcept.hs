@@ -1,15 +1,13 @@
 -- | Functions for handling 'HException's using 'Control.Monad.Trans.Except.ExceptT'.
 
-{-# LANGUAGE ConstraintKinds        #-}
-{-# LANGUAGE DataKinds              #-}
-{-# LANGUAGE FlexibleContexts       #-}
-{-# LANGUAGE FlexibleInstances      #-}
-{-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE KindSignatures         #-}
-{-# LANGUAGE MonoLocalBinds         #-}
-{-# LANGUAGE MultiParamTypeClasses  #-}
-{-# LANGUAGE TypeOperators          #-}
-{-# LANGUAGE UndecidableInstances   #-}
+{-# LANGUAGE ConstraintKinds       #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE MonoLocalBinds        #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE TypeOperators         #-}
+{-# LANGUAGE UndecidableInstances  #-}
 
 module Control.Monad.Trans.HExcept(
   HExcept,
@@ -23,8 +21,6 @@ module Control.Monad.Trans.HExcept(
   HandlerT,
   handler1,
   handlerT,
-  DeleteAll,
-  Slice,
   orElse,
   orDefault,
   Value,
@@ -81,22 +77,12 @@ handler1 f = f . H.get
 handlerT :: Applicative m => Handler es es' a -> HandlerT es es' m a
 handlerT f = hExceptT . f
 
--- | Delete all members of the type-level list @l@ from the type-level list @m@.
-class DeleteAll (l :: [*])  (m :: [*]) (m' :: [*]) | l m -> m'
-
-instance (HC.HDeleteMany l (HC.HList m) (HC.HList m'), DeleteAll l' m' m'') => DeleteAll (l ': l') m m''
-
-instance DeleteAll '[] m m
-
--- | Split @xs@ into two groups @xs'@ and @xs''@.
-type Slice xs xs' xs'' = (HC.SplitVariant xs xs' xs'', DeleteAll xs' xs xs'')
-
-sliceVariant :: Slice x xl xr => HC.Variant x -> Either (HC.Variant xl) (HC.Variant xr)
-sliceVariant = HC.splitVariant
-
 -- | Chain 'HandlerT's together.
-orElse :: Slice es'' es es' => HandlerT es os m a -> HandlerT es' os m a -> HandlerT es'' os m a
-orElse f g (I.HException (T.TIC v)) = either (f . I.HException . T.TIC) (g . I.HException . T.TIC) $ sliceVariant v
+orElse :: (H.Slice es'' es es', H.TypeIndexed es, H.TypeIndexed es') =>
+           HandlerT es os m a ->
+           HandlerT es' os m a ->
+           HandlerT es'' os m a
+orElse f g e = either f g $ H.slice e
 infixr 2 `orElse`
 
 -- | Try to use the provided 'HandlerT' or, if that handler does not apply, return the default.

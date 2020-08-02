@@ -7,10 +7,11 @@ module Control.HException.Test (suite) where
 import qualified Control.Exception  as CE
 import           Control.HException ((:^:), HException, HException1)
 import qualified Control.HException as H
+import qualified System.Exit        as SE
 import qualified Test.HUnit         as HUnit
 
 suite :: HUnit.Test
-suite = HUnit.TestList [testDisplay, testGet, testTry]
+suite = HUnit.TestList [testDisplay, testGet, testSlice, testTry]
 
 testDisplay :: HUnit.Test
 testDisplay = HUnit.TestLabel "display" . HUnit.TestCase $ do
@@ -31,6 +32,20 @@ testGet = HUnit.TestLabel "do" . HUnit.TestCase $ do
   HUnit.assertEqual "getMay (Just) extended1" (Just CE.DivideByZero) $ H.getMay extended1
   HUnit.assertEqual "getMay (Just) extended2" (Just CE.StackOverflow) $ H.getMay extended2
   HUnit.assertEqual "getMay (Nothing) extended2" (Nothing :: Maybe CE.ArithException) $ H.getMay extended2
+
+type SliceExample = HException (CE.ArithException :^: SE.ExitCode :^: CE.AsyncException :^: '[])
+type SliceLeft = HException1 SE.ExitCode
+type SliceRight = HException (CE.ArithException :^: CE.AsyncException :^: '[])
+type SliceEither = Either SliceLeft SliceRight
+
+testSlice :: HUnit.Test
+testSlice = HUnit.TestLabel "slice" . HUnit.TestCase $ do
+  let arith :: SliceExample = H.hException CE.DivideByZero
+      exit :: SliceExample = H.hException $ SE.ExitFailure 1
+      async :: SliceExample = H.hException CE.StackOverflow
+  HUnit.assertEqual "left exit" (Left (H.hException $ SE.ExitFailure 1) :: SliceEither) (H.slice exit)
+  HUnit.assertEqual "right arith" (Right (H.hException CE.DivideByZero) :: SliceEither) (H.slice arith)
+  HUnit.assertEqual "right arith" (Right (H.hException CE.StackOverflow) :: SliceEither) (H.slice async)
 
 testTry :: HUnit.Test
 testTry = HUnit.TestLabel "abc" . HUnit.TestCase $ do
