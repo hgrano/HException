@@ -4,7 +4,7 @@
 
 -- | Heterogeneously typed error handling.
 @package HException
-@version 0.1.0.1
+@version 0.1.0.2
 
 
 -- | Heterogeneously typed exceptions.
@@ -46,6 +46,14 @@ getMay :: Member e es => HException es -> Maybe e
 -- | Specialization of <a>getMay</a> for cases where there is only a single
 --   type of exception.
 get :: HException1 e -> e
+
+-- | Split <tt>xs</tt> into two groups <tt>xs'</tt> and <tt>xs''</tt>.
+type Slice xs xs' xs'' = (SplitVariant xs xs' xs'', DeleteAll xs' xs xs'')
+
+-- | Extract either the exceptions in the left type-level list <tt>el</tt>
+--   if the type of the underlying exception is in <tt>el</tt>, or
+--   otherwise return an exception in the right type-level list.
+slice :: (Slice es el er, TypeIndexed el, TypeIndexed er) => HException es -> Either (HException el) (HException er)
 
 -- | Constrain that the type-level list <tt>xs'</tt> contains all of the
 --   elements of the type-level list <tt>xs</tt>.
@@ -102,15 +110,8 @@ handler1 :: (e -> HExceptT es m a) -> HandlerT (Only e) es m a
 -- | Lift a (pure) handler into <tt>m</tt>.
 handlerT :: Applicative m => Handler es es' a -> HandlerT es es' m a
 
--- | Delete all members of the type-level list <tt>l</tt> from the
---   type-level list <tt>m</tt>.
-class DeleteAll (l :: [*]) (m :: [*]) (m' :: [*]) | l m -> m'
-
--- | Split <tt>xs</tt> into two groups <tt>xs'</tt> and <tt>xs''</tt>.
-type Slice xs xs' xs'' = (SplitVariant xs xs' xs'', DeleteAll xs' xs xs'')
-
 -- | Chain <a>HandlerT</a>s together.
-orElse :: Slice es'' es es' => HandlerT es os m a -> HandlerT es' os m a -> HandlerT es'' os m a
+orElse :: (Slice es'' es es', TypeIndexed es, TypeIndexed es') => HandlerT es os m a -> HandlerT es' os m a -> HandlerT es'' os m a
 
 -- | Try to use the provided <a>HandlerT</a> or, if that handler does not
 --   apply, return the default.
@@ -131,5 +132,3 @@ value :: Value a -> a
 
 -- | Monad transformer version of <a>value</a>.
 valueT :: Monad m => ValueT m a -> m a
-instance (Data.HList.HListPrelude.HDeleteMany l (Data.HList.HList.HList m) (Data.HList.HList.HList m'), Control.Monad.Trans.HExcept.DeleteAll l' m' m'') => Control.Monad.Trans.HExcept.DeleteAll (l : l') m m''
-instance Control.Monad.Trans.HExcept.DeleteAll '[] m m
