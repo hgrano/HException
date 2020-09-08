@@ -4,7 +4,7 @@
 
 -- | Heterogeneously typed error handling.
 @package HException
-@version 0.1.0.2
+@version 0.2.0.0
 
 
 -- | Heterogeneously typed exceptions.
@@ -24,9 +24,8 @@ type Only e = e :^: '[]
 -- | The type of <a>HException</a>s containing only one type of exception.
 type HException1 e = HException (Only e)
 
--- | The type of heterogeneous exceptions consisting of both <tt>es</tt>
---   and <tt>es'</tt>.
-type Both es es' = HAppendListR es es'
+-- | Concatenate a type-level list of lists (useful for combining two or
+--   more heterogeneous exception types).
 
 -- | The type-level list <tt>xs</tt> is constrained to contain only
 --   distinct types, and so can be indexed via type alone.
