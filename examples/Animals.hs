@@ -6,7 +6,7 @@
 module Animals (main) where
 
 import           Control.Exception           (catch)
-import           Control.HException          ((:^:), Both)
+import           Control.HException          ((:^:), Concat)
 import           Control.Monad.Trans.Class   (lift)
 import           Control.Monad.Trans.Except  (ExceptT (ExceptT), catchE,
                                               runExceptT)
@@ -159,10 +159,10 @@ readAnimalFile file = ExceptT $ runExceptT readAndCheckSize `catch` (runExceptT 
       else if isPermissionError ioErr then hThrowE $ FilePermissionError file
       else hThrowE $ UnknownFileReadError file ioErr
 
--- The 'Both' type simply means exceptions from both arguments may be returned
-type AnimalsParseError = InvalidName :^: Both DogParseError CatParseError
+-- The 'Concat' type enables us to combine many exception types together
+type AnimalsParseError = InvalidName :^: Concat '[DogParseError, CatParseError]
 
-type ProcessAnimalsError = Both FileError AnimalsParseError
+type ProcessAnimalsError = Concat '[FileError, AnimalsParseError]
 
 -- We now compose our impure and pure functions together
 processAnimalFiles :: FilePath -> FilePath -> HExceptT ProcessAnimalsError IO (Cat, Dog)

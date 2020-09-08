@@ -8,6 +8,7 @@
 {-# LANGUAGE MultiParamTypeClasses  #-}
 {-# LANGUAGE ScopedTypeVariables    #-}
 {-# LANGUAGE StandaloneDeriving     #-}
+{-# LANGUAGE TypeFamilies           #-}
 {-# LANGUAGE TypeOperators          #-}
 {-# LANGUAGE UndecidableInstances   #-}
 
@@ -38,8 +39,10 @@ type Only e = e :^: '[]
 -- | The type of 'HException's containing only one type of exception.
 type HException1 e = HException (Only e)
 
--- | The type of heterogeneous exceptions consisting of both @es@ and @es'@.
-type Both es es' = H.HAppendListR es es'
+-- | Concatenate a type-level list of lists (useful for combining two or more heterogeneous exception types).
+type family Concat (xs :: [[*]]) :: [*] where
+  Concat '[] = '[]
+  Concat (x ': xs) = H.HConcatR ((H.HList x) ': (H.HList (Concat xs)) ': '[])
 
 instance V.ShowVariant (e ': es) => Show (HException (e ': es)) where
   show = ("HException" ++) . drop 3 . show . unHException
