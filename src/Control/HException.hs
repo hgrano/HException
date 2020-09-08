@@ -15,7 +15,7 @@ module Control.HException(
   (I.:^:),
   I.Only,
   I.HException1,
-  I.Both,
+  I.Concat,
   I.TypeIndexed,
   I.Member,
   I.hException,
