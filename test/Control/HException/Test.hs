@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeOperators       #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module Control.HException.Test (suite) where
 
@@ -11,7 +12,7 @@ import qualified System.Exit        as SE
 import qualified Test.HUnit         as HUnit
 
 suite :: HUnit.Test
-suite = HUnit.TestList [testDisplay, testGet, testSlice, testTry]
+suite = HUnit.TestList [testDisplay, testGet, testMap, testSlice, testTry]
 
 testDisplay :: HUnit.Test
 testDisplay = HUnit.TestLabel "display" . HUnit.TestCase $ do
@@ -32,6 +33,31 @@ testGet = HUnit.TestLabel "do" . HUnit.TestCase $ do
   HUnit.assertEqual "getMay (Just) extended1" (Just CE.DivideByZero) $ H.getMay extended1
   HUnit.assertEqual "getMay (Just) extended2" (Just CE.StackOverflow) $ H.getMay extended2
   HUnit.assertEqual "getMay (Nothing) extended2" (Nothing :: Maybe CE.ArithException) $ H.getMay extended2
+
+testMap :: HUnit.Test
+testMap = HUnit.TestLabel "map" . HUnit.TestCase $ do
+  let arithToExit (arith :: HException1 CE.ArithException) = case H.get arith of
+        CE.DivideByZero -> H.hException $ SE.ExitFailure 1
+        _ -> H.hException SE.ExitSuccess
+  HUnit.assertEqual
+    "map 1"
+    (H.hException (SE.ExitFailure 1) :: HException1 SE.ExitCode)
+    (H.subMap arithToExit (divideByZero :: HException1 CE.ArithException))
+  HUnit.assertEqual
+    "map 2"
+    (H.hException (SE.ExitFailure 1) :: HException (SE.ExitCode :^: CE.AsyncException :^: '[]))
+    (H.subMap arithToExit (divideByZero :: HException (CE.ArithException :^: CE.AsyncException :^: '[])))
+  HUnit.assertEqual
+    "map 2 (flow through)"
+    (H.hException CE.StackOverflow :: HException (SE.ExitCode :^: CE.AsyncException :^: '[]))
+    (H.subMap arithToExit (stackOverflow :: HException (CE.ArithException :^: CE.AsyncException :^: '[])))
+
+  where
+    divideByZero :: (H.Member CE.ArithException es, H.TypeIndexed es) => HException es
+    divideByZero = H.hException CE.DivideByZero
+
+    stackOverflow :: (H.Member CE.AsyncException es, H.TypeIndexed es) => HException es
+    stackOverflow = H.hException CE.StackOverflow
 
 type SliceExample = HException (CE.ArithException :^: SE.ExitCode :^: CE.AsyncException :^: '[])
 type SliceLeft = HException1 SE.ExitCode

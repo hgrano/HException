@@ -128,3 +128,17 @@ instance E.Exception e => E.Exception (HException (Only e)) where
     Nothing       -> Nothing
 
   displayException = E.displayException . get
+
+class SubMap es x y es' where
+  subMap :: DeleteAll x es y => (HException x -> HException es') -> HException es -> HException es'
+
+instance (Slice es x (y :^: ys),
+          TypeIndexed x, TypeIndexed (y :^: ys),
+          TypeIndexed es',
+          Subset (y :^: ys) es') => SubMap es x (y :^: ys) es' where -- ,
+  subMap f e = case slice e of
+    Left x -> f x
+    Right y -> generalize y
+
+instance SubMap es es '[] es' where
+  subMap f = f
