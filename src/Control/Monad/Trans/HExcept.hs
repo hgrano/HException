@@ -21,6 +21,7 @@ module Control.Monad.Trans.HExcept(
   HandlerT,
   handler1,
   handlerT,
+  catchSubset,
   orElse,
   orDefault,
   Value,
@@ -76,6 +77,19 @@ handler1 f = f . H.get
 -- | Lift a (pure) handler into @m@.
 handlerT :: Applicative m => Handler es es' a -> HandlerT es es' m a
 handlerT f = hExceptT . f
+
+catchSubset :: (H.TransformSubset es sub sub' es', Monad m) =>
+               HExceptT es m a ->
+               (HException sub -> HExceptT es' m a) ->
+               HExceptT es' m a
+catchSubset compute f = TE.catchE compute (swapExceptT . H.transformSubset f')
+  where
+    f' = swapExceptT . f
+
+    swapExceptT = TE.mapExceptT (fmap swapEither)
+
+    swapEither (Left x) = Right x
+    swapEither (Right x) = Left x
 
 -- | Chain 'HandlerT's together.
 orElse :: (H.Slice es'' es es', H.TypeIndexed es, H.TypeIndexed es') =>

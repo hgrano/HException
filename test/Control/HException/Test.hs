@@ -36,27 +36,29 @@ testGet = HUnit.TestLabel "do" . HUnit.TestCase $ do
 
 testMap :: HUnit.Test
 testMap = HUnit.TestLabel "map" . HUnit.TestCase $ do
-  let arithToExit (arith :: HException1 CE.ArithException) = case H.get arith of
-        CE.DivideByZero -> H.hException $ SE.ExitFailure 1
-        _ -> H.hException SE.ExitSuccess
   HUnit.assertEqual
     "map 1"
     (H.hException (SE.ExitFailure 1) :: HException1 SE.ExitCode)
-    (H.subMap arithToExit (divideByZero :: HException1 CE.ArithException))
+    (H.mapSubset arithToExit (divideByZero :: HException1 CE.ArithException))
   HUnit.assertEqual
     "map 2"
     (H.hException (SE.ExitFailure 1) :: HException (SE.ExitCode :^: CE.AsyncException :^: '[]))
-    (H.subMap arithToExit (divideByZero :: HException (CE.ArithException :^: CE.AsyncException :^: '[])))
+    (H.mapSubset arithToExit (divideByZero :: HException (CE.ArithException :^: CE.AsyncException :^: '[])))
   HUnit.assertEqual
     "map 2 (flow through)"
     (H.hException CE.StackOverflow :: HException (SE.ExitCode :^: CE.AsyncException :^: '[]))
-    (H.subMap arithToExit (stackOverflow :: HException (CE.ArithException :^: CE.AsyncException :^: '[])))
+    (H.mapSubset arithToExit (stackOverflow :: HException (CE.ArithException :^: CE.AsyncException :^: '[])))
 
   where
-    divideByZero :: (H.Member CE.ArithException es, H.TypeIndexed es) => HException es
+    arithToExit :: forall es. (H.Member SE.ExitCode es, H.TypeIndexed es) => HException1 CE.ArithException -> HException es
+    arithToExit arith = case H.get arith of
+      CE.DivideByZero -> H.hException $ SE.ExitFailure 1
+      _ -> H.hException SE.ExitSuccess
+
+    divideByZero :: forall es. (H.Member CE.ArithException es, H.TypeIndexed es) => HException es
     divideByZero = H.hException CE.DivideByZero
 
-    stackOverflow :: (H.Member CE.AsyncException es, H.TypeIndexed es) => HException es
+    stackOverflow :: forall es. (H.Member CE.AsyncException es, H.TypeIndexed es) => HException es
     stackOverflow = H.hException CE.StackOverflow
 
 type SliceExample = HException (CE.ArithException :^: SE.ExitCode :^: CE.AsyncException :^: '[])

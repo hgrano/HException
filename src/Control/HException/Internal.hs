@@ -11,6 +11,7 @@
 {-# LANGUAGE TypeFamilies           #-}
 {-# LANGUAGE TypeOperators          #-}
 {-# LANGUAGE UndecidableInstances   #-}
+{-# LANGUAGE InstanceSigs #-}
 
 module Control.HException.Internal where
 
@@ -21,6 +22,7 @@ import qualified Data.HList.TIP        as TP
 import qualified Data.HList.Variant    as V
 import           Data.Proxy            (Proxy (Proxy))
 import           Data.Typeable         (Typeable)
+import Data.Functor.Identity (Identity(..))
 
 -- This module provides an internal interface which enables de-constructing a HException into a TIC. Type classes
 -- instances for HExceptions are also defined here
@@ -79,9 +81,11 @@ get (HException (T.TIC v)) = H.unvariant v
 -- | Delete all members of the type-level list @l@ from the type-level list @m@.
 class DeleteAll (l :: [*])  (m :: [*]) (m' :: [*]) | l m -> m'
 
-instance (H.HDeleteMany l (H.HList m) (H.HList m'), DeleteAll l' m' m'') => DeleteAll (l ': l') m m''
+instance (H.HDeleteMany l (H.HList (x ': y ': x')) (H.HList m'), DeleteAll l' m' o) => DeleteAll (l ': l') (x ': y ': x') o
 
-instance DeleteAll '[] m m
+instance DeleteAll '[x] '[x] '[]
+
+instance DeleteAll '[] x x
 
 -- | Split @xs@ into two groups @xs'@ and @xs''@.
 type Slice xs xs' xs'' = (H.SplitVariant xs xs' xs'', DeleteAll xs' xs xs'')
@@ -129,16 +133,34 @@ instance E.Exception e => E.Exception (HException (Only e)) where
 
   displayException = E.displayException . get
 
-class SubMap es x y es' where
-  subMap :: DeleteAll x es y => (HException x -> HException es') -> HException es -> HException es'
+class TransformSubset (es :: [*]) (sub :: [*]) (sub' :: [*]) (es' :: [*]) | es sub -> sub' where
+  -- | Apply a function to transform a subset (@sub@) of the possible exception types contained in @es@, if any other
+  -- exception is encountered then it is carried through to the output without transformation.
+  transformSubset :: Applicative m => (HException sub -> m (HException es')) -> HException es -> m (HException es')
 
-instance (Slice es x (y :^: ys),
-          TypeIndexed x, TypeIndexed (y :^: ys),
-          TypeIndexed es',
-          Subset (y :^: ys) es') => SubMap es x (y :^: ys) es' where -- ,
-  subMap f e = case slice e of
-    Left x -> f x
-    Right y -> generalize y
+instance (Slice (i :^: i' :^: i'') (Only s) other,
+          TypeIndexed other,
+          Subset (Only s) (s :^: s' :^: s''),
+          TypeIndexed (s :^: s' :^: s''),
+          Subset (s' :^: s'') (s :^: s' :^: s''),
+          TransformSubset other (s' :^: s'') t o) => TransformSubset (i :^: i' :^: i'') (s :^: s' :^: s'') t o where -- ,
+  transformSubset :: forall m. Applicative m => (HException (s :^: s' :^: s'') -> m (HException o)) -> HException (i :^: i' :^: i'') -> m (HException o)
+  transformSubset f e = case slice e of
+    Left (x :: HException1 s) -> f $ generalize x
+    Right (other :: HException other) ->
+      let f' :: HException (s' :^: s'') -> m (HException o) = f . generalize in
+      transformSubset f' other
 
-instance SubMap es es '[] es' where
-  subMap f = f
+instance (Slice (i :^: i' :^: i'') (Only s) (t :^: t'),
+          TypeIndexed (t :^: t'),
+          Subset (t :^: t') o,
+          TypeIndexed o) => TransformSubset (i :^: i' :^: i'') (Only s) (t :^: t') o where
+  transformSubset f e = case slice e of
+    Left (x :: HException1 s) -> f x
+    Right (other :: HException (t :^: t')) -> pure $ generalize other
+
+instance TransformSubset (Only i) (Only i) '[] o where
+  transformSubset f = f
+
+mapSubset :: TransformSubset es sub sub' es' => (HException sub -> HException es') -> HException es -> HException es'
+mapSubset f = runIdentity . transformSubset (Identity . f)
