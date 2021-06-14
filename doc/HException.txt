@@ -4,7 +4,7 @@
 
 -- | Heterogeneously typed error handling.
 @package HException
-@version 0.2.0.0
+@version 0.2.0.1
 
 
 -- | Heterogeneously typed exceptions.
@@ -61,6 +61,18 @@ type Subset xs xs' = ExtendsVariant xs xs'
 -- | Changes the type of a <a>HException</a> so it is more general than the
 --   original, without changing the underlying exception.
 generalize :: (Subset es es', TypeIndexed es') => HException es -> HException es'
+class TransformSubset (i :: [*]) (sub :: [*]) (sub' :: [*]) (o :: [*]) | i sub -> sub'
+
+-- | Apply a function to transform a subset (<tt>sub</tt>) of the possible
+--   exception types contained in <tt>i</tt>, if any other exception is
+--   encountered then it is carried through to the output without
+--   transformation.
+transformSubset :: (TransformSubset i sub sub' o, Applicative m) => (HException sub -> m (HException o)) -> HException i -> m (HException o)
+
+-- | Map a subset of the exception types in the input using the provided
+--   function, any other exception types will be carried through to the
+--   output.
+mapSubset :: TransformSubset i sub sub' o => (HException sub -> HException o) -> HException i -> HException o
 
 
 -- | Functions for handling <a>HException</a>s using <a>ExceptT</a>.
@@ -108,6 +120,12 @@ handler1 :: (e -> HExceptT es m a) -> HandlerT (Only e) es m a
 
 -- | Lift a (pure) handler into <tt>m</tt>.
 handlerT :: Applicative m => Handler es es' a -> HandlerT es es' m a
+
+-- | Similar to <a>catchE</a> but instead of needing to handle all types of
+--   exceptions, we can handle a specific subset of the exception types.
+--   Exceptions that are not handled are carried through to the output
+--   without transformation.
+catchSubset :: (TransformSubset es sub sub' es', Monad m) => HExceptT es m a -> (HException sub -> HExceptT es' m a) -> HExceptT es' m a
 
 -- | Chain <a>HandlerT</a>s together.
 orElse :: (Slice es'' es es', TypeIndexed es, TypeIndexed es') => HandlerT es os m a -> HandlerT es' os m a -> HandlerT es'' os m a

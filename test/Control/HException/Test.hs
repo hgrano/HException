@@ -1,7 +1,7 @@
 {-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeOperators       #-}
-{-# LANGUAGE FlexibleContexts #-}
 
 module Control.HException.Test (suite) where
 
@@ -58,8 +58,8 @@ testMap = HUnit.TestLabel "map" . HUnit.TestCase $ do
     "map complex (swapped)"
     (H.hException (CE.IndexOutOfBounds "-1") :: HException (CE.ErrorCall :^: CE.ArrayException :^: SE.ExitCode :^: '[]))
     (H.mapSubset mapAsyncOrArith (divideByZero :: HException (CE.ErrorCall :^:
-                                                               CE.ArithException :^:
-                                                               CE.AsyncException :^: '[])))
+                                                              CE.ArithException :^:
+                                                              CE.AsyncException :^: '[])))
   HUnit.assertEqual
     "map complex (flow through)"
     (H.hException (CE.ErrorCall "error") :: HException (CE.ErrorCall :^: CE.ArrayException :^: SE.ExitCode :^: '[]))
@@ -71,7 +71,7 @@ testMap = HUnit.TestLabel "map" . HUnit.TestCase $ do
     arithToExit :: forall es. (H.Member SE.ExitCode es, H.TypeIndexed es) => HException1 CE.ArithException -> HException es
     arithToExit arith = case H.get arith of
       CE.DivideByZero -> H.hException $ SE.ExitFailure 1
-      _ -> H.hException SE.ExitSuccess
+      _               -> H.hException SE.ExitSuccess
 
     mapAsyncOrArith :: forall es. (H.Member SE.ExitCode es, H.Member CE.ArrayException es, H.TypeIndexed es) =>
                        HException (CE.AsyncException :^: CE.ArithException :^: '[]) ->

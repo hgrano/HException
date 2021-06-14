@@ -78,6 +78,8 @@ handler1 f = f . H.get
 handlerT :: Applicative m => Handler es es' a -> HandlerT es es' m a
 handlerT f = hExceptT . f
 
+-- | Similar to 'TE.catchE' but instead of needing to handle all types of exceptions, we can handle a specific subset
+-- of the exception types. Exceptions that are not handled are carried through to the output without transformation.
 catchSubset :: (H.TransformSubset es sub sub' es', Monad m) =>
                HExceptT es m a ->
                (HException sub -> HExceptT es' m a) ->
@@ -88,7 +90,7 @@ catchSubset compute f = TE.catchE compute (swapExceptT . H.transformSubset f')
 
     swapExceptT = TE.mapExceptT (fmap swapEither)
 
-    swapEither (Left x) = Right x
+    swapEither (Left x)  = Right x
     swapEither (Right x) = Left x
 
 -- | Chain 'HandlerT's together.
