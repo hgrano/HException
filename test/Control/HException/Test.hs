@@ -12,7 +12,7 @@ import qualified System.Exit        as SE
 import qualified Test.HUnit         as HUnit
 
 suite :: HUnit.Test
-suite = HUnit.TestList [testDisplay, testGet, testMap, testSlice, testTry]
+suite = HUnit.TestList [testDisplay, testGet, testMapAndTransform, testSlice, testTry]
 
 testDisplay :: HUnit.Test
 testDisplay = HUnit.TestLabel "display" . HUnit.TestCase $ do
@@ -34,12 +34,16 @@ testGet = HUnit.TestLabel "do" . HUnit.TestCase $ do
   HUnit.assertEqual "getMay (Just) extended2" (Just CE.StackOverflow) $ H.getMay extended2
   HUnit.assertEqual "getMay (Nothing) extended2" (Nothing :: Maybe CE.ArithException) $ H.getMay extended2
 
-testMap :: HUnit.Test
-testMap = HUnit.TestLabel "map" . HUnit.TestCase $ do
+testMapAndTransform :: HUnit.Test
+testMapAndTransform = HUnit.TestLabel "map" . HUnit.TestCase $ do
   HUnit.assertEqual
     "map 1"
     (H.hException (SE.ExitFailure 1) :: HException1 SE.ExitCode)
     (H.mapSubset arithToExit (divideByZero :: HException1 CE.ArithException))
+  HUnit.assertEqual
+    "transform 1"
+    ([H.hException (SE.ExitFailure 1)] :: [HException1 SE.ExitCode])
+    (H.transformSubset (pure . arithToExit) (divideByZero :: HException1 CE.ArithException))
   HUnit.assertEqual
     "map 2"
     (H.hException (SE.ExitFailure 1) :: HException (SE.ExitCode :^: CE.AsyncException :^: '[]))
