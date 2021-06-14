@@ -10,6 +10,7 @@ import qualified Control.HException          as H
 import           Control.Monad.Trans.Except  as TE
 import qualified Control.Monad.Trans.HExcept as HE
 import           Data.Char                   (isAlpha)
+import qualified System.Exit                 as SE
 import qualified Test.HUnit                  as HUnit
 
 newtype SimpleError = SimpleError { unSimpleError :: String } deriving (Eq, Ord, Show)
@@ -19,7 +20,14 @@ newtype IntError = IntError Int deriving (Eq, Ord, Show)
 instance CE.Exception IntError
 
 suite :: HUnit.Test
-suite = HUnit.TestList [testDoExample, testHandling, testHThrowE, testValue]
+suite = HUnit.TestList [testCatchSubset, testDoExample, testHandling, testHThrowE, testValue]
+
+testCatchSubset :: HUnit.Test
+testCatchSubset = HUnit.TestLabel "handle subset" . HUnit.TestCase $ do
+  let simpleErr :: HE.HExcept (SimpleError :^: IntError :^: '[]) Bool = HE.hThrowE $ SimpleError "error1"
+      exitFailure :: HE.HExcept (SE.ExitCode :^: IntError :^: '[]) Bool = HE.hThrowE $ SE.ExitFailure 1
+  HUnit.assertEqual "Catch simple error" exitFailure $
+    simpleErr `HE.catchSubset` (\(_ :: H.HException1 SimpleError) -> HE.hThrowE $ SE.ExitFailure 1)
 
 testDoExample :: HUnit.Test
 testDoExample = HUnit.TestLabel "do" . HUnit.TestCase $ do

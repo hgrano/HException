@@ -24,7 +24,9 @@ module Control.HException(
   I.Slice,
   I.slice,
   I.Subset,
-  I.generalize
+  I.generalize,
+  I.TransformSubset(..),
+  I.mapSubset
 ) where
 
 import qualified Control.HException.Internal as I

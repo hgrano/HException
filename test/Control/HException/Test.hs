@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeOperators       #-}
 
@@ -11,7 +12,7 @@ import qualified System.Exit        as SE
 import qualified Test.HUnit         as HUnit
 
 suite :: HUnit.Test
-suite = HUnit.TestList [testDisplay, testGet, testSlice, testTry]
+suite = HUnit.TestList [testDisplay, testGet, testMapAndTransform, testSlice, testTry]
 
 testDisplay :: HUnit.Test
 testDisplay = HUnit.TestLabel "display" . HUnit.TestCase $ do
@@ -32,6 +33,70 @@ testGet = HUnit.TestLabel "do" . HUnit.TestCase $ do
   HUnit.assertEqual "getMay (Just) extended1" (Just CE.DivideByZero) $ H.getMay extended1
   HUnit.assertEqual "getMay (Just) extended2" (Just CE.StackOverflow) $ H.getMay extended2
   HUnit.assertEqual "getMay (Nothing) extended2" (Nothing :: Maybe CE.ArithException) $ H.getMay extended2
+
+testMapAndTransform :: HUnit.Test
+testMapAndTransform = HUnit.TestLabel "map" . HUnit.TestCase $ do
+  HUnit.assertEqual
+    "map 1"
+    (H.hException (SE.ExitFailure 1) :: HException1 SE.ExitCode)
+    (H.mapSubset arithToExit (divideByZero :: HException1 CE.ArithException))
+  HUnit.assertEqual
+    "transform 1"
+    ([H.hException (SE.ExitFailure 1)] :: [HException1 SE.ExitCode])
+    (H.transformSubset (pure . arithToExit) (divideByZero :: HException1 CE.ArithException))
+  HUnit.assertEqual
+    "map 2"
+    (H.hException (SE.ExitFailure 1) :: HException (SE.ExitCode :^: CE.AsyncException :^: '[]))
+    (H.mapSubset arithToExit (divideByZero :: HException (CE.ArithException :^: CE.AsyncException :^: '[])))
+  HUnit.assertEqual
+    "map 2 (flow through)"
+    (H.hException CE.StackOverflow :: HException (SE.ExitCode :^: CE.AsyncException :^: '[]))
+    (H.mapSubset arithToExit (stackOverflow :: HException (CE.ArithException :^: CE.AsyncException :^: '[])))
+  HUnit.assertEqual
+    "map complex"
+    (H.hException (SE.ExitFailure 1) :: HException (CE.ErrorCall :^: CE.ArrayException :^: SE.ExitCode :^: '[]))
+    (H.mapSubset mapAsyncOrArith (stackOverflow :: HException (CE.ErrorCall :^:
+                                                               CE.ArithException :^:
+                                                               CE.AsyncException :^: '[])))
+  HUnit.assertEqual
+    "map complex (swapped)"
+    (H.hException (CE.IndexOutOfBounds "-1") :: HException (CE.ErrorCall :^: CE.ArrayException :^: SE.ExitCode :^: '[]))
+    (H.mapSubset mapAsyncOrArith (divideByZero :: HException (CE.ErrorCall :^:
+                                                              CE.ArithException :^:
+                                                              CE.AsyncException :^: '[])))
+  HUnit.assertEqual
+    "map complex (flow through)"
+    (H.hException (CE.ErrorCall "error") :: HException (CE.ErrorCall :^: CE.ArrayException :^: SE.ExitCode :^: '[]))
+    (H.mapSubset mapAsyncOrArith (H.hException (CE.ErrorCall "error") :: HException (CE.ErrorCall :^:
+                                                                                     CE.ArithException :^:
+                                                                                     CE.AsyncException :^: '[])))
+
+  where
+    arithToExit :: forall es. (H.Member SE.ExitCode es, H.TypeIndexed es) => HException1 CE.ArithException -> HException es
+    arithToExit arith = case H.get arith of
+      CE.DivideByZero -> H.hException $ SE.ExitFailure 1
+      _               -> H.hException SE.ExitSuccess
+
+    mapAsyncOrArith :: forall es. (H.Member SE.ExitCode es, H.Member CE.ArrayException es, H.TypeIndexed es) =>
+                       HException (CE.AsyncException :^: CE.ArithException :^: '[]) ->
+                       HException es
+    mapAsyncOrArith err = case H.slice err of
+      Left (async :: HException1 CE.AsyncException) ->
+        if H.get async == CE.StackOverflow then
+          H.hException $ SE.ExitFailure 1
+        else
+          H.hException SE.ExitSuccess
+      Right (arith :: HException1 CE.ArithException) ->
+        if H.get arith == CE.DivideByZero then
+          H.hException $ CE.IndexOutOfBounds "-1"
+        else
+          H.hException $ CE.IndexOutOfBounds "-2"
+
+    divideByZero :: forall es. (H.Member CE.ArithException es, H.TypeIndexed es) => HException es
+    divideByZero = H.hException CE.DivideByZero
+
+    stackOverflow :: forall es. (H.Member CE.AsyncException es, H.TypeIndexed es) => HException es
+    stackOverflow = H.hException CE.StackOverflow
 
 type SliceExample = HException (CE.ArithException :^: SE.ExitCode :^: CE.AsyncException :^: '[])
 type SliceLeft = HException1 SE.ExitCode

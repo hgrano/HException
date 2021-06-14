@@ -1,7 +1,7 @@
 cabal-version: 1.12
 
 name:           HException
-version:        0.2.0.0
+version:        0.2.0.1
 description:    Heterogeneously typed error handling.
 homepage:       https://github.com/hgrano/HException
 bug-reports:    https://github.com/hgrano/HException/issues

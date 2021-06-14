@@ -214,4 +214,5 @@ main = do
         (displayParseProblem `orDefault` return "Something went wrong reading a file")
       putStrLn message
       putStrLn simpleMessage
+      -- TODO add examle of using 'handleSubset' which is the alternative to using 'orDefault'
     _ -> putStrLn "Expected two file names." >> exitFailure
